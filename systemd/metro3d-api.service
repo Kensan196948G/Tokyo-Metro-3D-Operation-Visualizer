@@ -1,0 +1,19 @@
+[Unit]
+Description=Tokyo Metro 3D API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/metro3d/backend
+EnvironmentFile=/opt/metro3d/.env
+ExecStart=/usr/bin/node dist/server.js
+Restart=always
+RestartSec=5
+User=metro3d
+Group=metro3d
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

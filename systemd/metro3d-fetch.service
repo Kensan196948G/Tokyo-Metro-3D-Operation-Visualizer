@@ -1,0 +1,10 @@
+[Unit]
+Description=Fetch Tokyo Metro GTFS-RT
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/metro3d/backend
+EnvironmentFile=/opt/metro3d/.env
+ExecStart=/usr/bin/node dist/scripts/fetch-gtfs-rt.js
+User=metro3d
+Group=metro3d
