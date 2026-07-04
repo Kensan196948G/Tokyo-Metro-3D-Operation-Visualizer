@@ -7,25 +7,26 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "fetch:static": "tsx scripts/fetch-gtfs.ts",
-    "fetch:realtime": "tsx scripts/fetch-gtfs-rt.ts",
+    "fetch:static": "tsx src/scripts/fetch-gtfs.ts",
+    "fetch:realtime": "tsx src/scripts/fetch-gtfs-rt.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "fastify": "^4.27.0",
     "@fastify/cors": "^9.0.1",
     "dotenv": "^16.4.5",
+    "fastify": "^4.27.0",
+    "fflate": "^0.8.3",
+    "gtfs-realtime-bindings": "^1.0.0",
     "pino": "^9.0.0",
-    "pino-pretty": "^11.0.0",
-    "gtfs-realtime-bindings": "^1.0.0"
+    "pino-pretty": "^11.0.0"
   },
   "devDependencies": {
-    "typescript": "^5.4.5",
+    "@types/node": "^20.12.0",
     "tsx": "^4.11.0",
-    "vitest": "^1.6.0",
-    "@types/node": "^20.12.0"
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
   }
 }
