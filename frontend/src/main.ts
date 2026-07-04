@@ -32,6 +32,9 @@ metro.scene.add(routeLayer.getGroup());
 metro.scene.add(stationLayer.getGroup());
 metro.scene.add(trainLayer.getGroup());
 
+// Frame-by-frame train interpolation (smooth motion between 15s polls)
+metro.onFrame((now) => trainLayer.tick(now));
+
 // Raycaster for click/hover
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -157,6 +160,7 @@ async function init(): Promise<void> {
   routeLayer.update(stations, routes, shapes);
   stationLayer.update(stations, routes);
   trainLayer.update(trains, routes);
+  metro.fitToPoints(stations); // frame the whole network on first load
 
   updateRouteList(routes);
   updateAlertList(alerts);
