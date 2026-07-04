@@ -2,6 +2,19 @@
 
 東京メトロの路線・駅・列車運行状況を3Dビューで可視化するWebアプリケーション（非公式PoC）。
 
+## 🚆 リアルタイム流動表示の仕組み
+
+```
+[ODPT GTFS-RT] --15秒間隔--> [常駐APIプロセス] --キャッシュ--> [ブラウザ]
+                                                              毎フレーム lerp 補間
+                                                              (60fps で滑らかに移動)
+```
+
+- バックエンドが `ODPT_GTFS_RT_URL` 設定時に **常駐ポーリング**（`FETCH_INTERVAL_SECONDS`、既定 15 秒）
+- フロントエンドは前回位置→今回位置を **smoothstep 補間**し、元データが 15 秒粒度でも毎フレーム流れるように表示
+- 列車は進行方向を向き、遅延編成はパルス発光
+- トークン未設定時はモック列車が路線上を決定論的に往復進行（デモも流動）
+
 ## 📊 システム構成
 
 ```
@@ -65,6 +78,33 @@ npm run dev
 | GET | /api/realtime/alerts | アラート情報 |
 | GET | /api/status | データ取得状態（静的/RT 鮮度・失敗回数） |
 | POST | /api/admin/refetch | 手動再取得（ローカルのみ・静的+RT 並行） |
+
+## 🖥️ LAN 常駐サービス（systemd・単一サービス構成）
+
+backend が frontend のビルド成果物も配信する構成で、LAN 内へ常時公開できます。
+
+```bash
+# 1. ビルド
+cd frontend && npm run build && cd ../backend && npm run build && cd ..
+
+# 2. .env をリポジトリ直下に用意 (PORT / SERVE_STATIC_DIR を設定)
+cp .env.example .env  # PORT=3020, SERVE_STATIC_DIR=<絶対パス>/frontend/dist 等
+
+# 3. systemd ユーザーユニット登録（root 不要）
+cp systemd/metro3d-lan.service ~/.config/systemd/user/metro3d.service
+systemctl --user daemon-reload
+systemctl --user enable --now metro3d.service
+
+# 4. ブート時自動起動（ログイン不要で起動）
+loginctl enable-linger $USER
+```
+
+| 操作 | コマンド |
+|---|---|
+| 状態確認 | `systemctl --user status metro3d` |
+| ログ | `journalctl --user -u metro3d -f` |
+| 再起動 | `systemctl --user restart metro3d` |
+| 停止/無効化 | `systemctl --user disable --now metro3d` |
 
 ## 🔄 データ取得コマンド
 

@@ -57,8 +57,17 @@ export class MetroScene {
     this.renderer.setSize(w, h);
   }
 
+  private frameCallbacks: Array<(nowMs: number) => void> = [];
+
+  /** Registers a callback invoked every animation frame (for interpolation). */
+  onFrame(cb: (nowMs: number) => void): void {
+    this.frameCallbacks.push(cb);
+  }
+
   private animate(): void {
     requestAnimationFrame(() => this.animate());
+    const now = performance.now();
+    for (const cb of this.frameCallbacks) cb(now);
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
   }
@@ -66,6 +75,36 @@ export class MetroScene {
   resetCamera(): void {
     this.camera.position.set(CAMERA_DEFAULT.x, CAMERA_DEFAULT.y, CAMERA_DEFAULT.z);
     this.controls.target.set(CAMERA_DEFAULT.targetX, CAMERA_DEFAULT.targetY, CAMERA_DEFAULT.targetZ);
+    this.controls.update();
+  }
+
+  /**
+   * Frames the camera so the given XZ points fill the view. The geo center
+   * (config CENTER_LON) sits west of the actual network centroid, so a fixed
+   * origin-look leaves the network off-screen right — fit to data instead.
+   */
+  fitToPoints(points: Array<{ x: number; z: number }>): void {
+    if (points.length === 0) return;
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minZ = Infinity;
+    let maxZ = -Infinity;
+    for (const p of points) {
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.z < minZ) minZ = p.z;
+      if (p.z > maxZ) maxZ = p.z;
+    }
+    const centerX = (minX + maxX) / 2;
+    const centerZ = (minZ + maxZ) / 2;
+    const spread = Math.max(maxX - minX, maxZ - minZ, 50);
+    const fovRad = (this.camera.fov * Math.PI) / 180;
+    // Distance so the spread fits vertically with ~20% margin
+    const distance = (spread * 1.2) / (2 * Math.tan(fovRad / 2));
+
+    this.controls.target.set(centerX, 0, centerZ);
+    // Tilted bird's-eye: pull back along +Z and up along +Y from the target
+    this.camera.position.set(centerX, distance * 0.8, centerZ + distance * 0.75);
     this.controls.update();
   }
 }
