@@ -3,6 +3,7 @@ import { MetroStation, MOCK_STATIONS, latLonToXZ } from '../domain/stationModel.
 import { TOKYO_METRO_ROUTES } from '../domain/routeModel.js';
 import { isValidLatLon } from '../utils/geo.js';
 import { logger } from '../utils/logger.js';
+import { cacheStore } from './cacheStore.js';
 
 export type NormalizedData = {
   routes: typeof TOKYO_METRO_ROUTES;
@@ -64,10 +65,12 @@ export function generateMockAlerts(): MetroAlert[] {
   ];
 }
 
-export function normalizeStations(rawStations?: unknown[]): MetroStation[] {
-  if (!rawStations || rawStations.length === 0) {
-    logger.warn('normalizeStations: using mock stations');
-    return MOCK_STATIONS;
+/** GTFS-normalized stations from cache when available, otherwise mock data. */
+export function loadStations(): { stations: MetroStation[]; source: 'gtfs' | 'mock' } {
+  const cached = cacheStore.read<MetroStation[]>('stations');
+  if (cached && cached.length > 0) {
+    return { stations: cached, source: 'gtfs' };
   }
-  return MOCK_STATIONS; // Phase 2+ real GTFS integration
+  logger.warn('loadStations: cache empty, using mock stations');
+  return { stations: MOCK_STATIONS, source: 'mock' };
 }
