@@ -1,5 +1,5 @@
 import { API_BASE_URL } from '../config/appConfig.js';
-import type { MetroRoute, MetroStation, MetroTrain, MetroAlert, ApiResponse, HealthData, ApiStatus } from '../types/metro.js';
+import type { MetroRoute, MetroStation, MetroRouteShape, MetroTrain, MetroAlert, ApiResponse, HealthData, ApiStatus } from '../types/metro.js';
 
 async function fetchApi<T>(path: string): Promise<T | null> {
   try {
@@ -30,6 +30,10 @@ export async function fetchRoutes(): Promise<MetroRoute[]> {
 
 export async function fetchStations(): Promise<MetroStation[]> {
   return (await fetchApi<MetroStation[]>('/api/stations')) ?? [];
+}
+
+export async function fetchRouteShapes(): Promise<MetroRouteShape[]> {
+  return (await fetchApi<MetroRouteShape[]>('/api/route-shapes')) ?? [];
 }
 
 export async function fetchTrains(): Promise<MetroTrain[]> {
