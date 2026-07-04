@@ -1,0 +1,21 @@
+# LAN single-service deployment (systemd USER unit).
+# Install:
+#   cp systemd/metro3d-lan.service ~/.config/systemd/user/metro3d.service
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now metro3d.service
+#   loginctl enable-linger $USER   # start at boot without login
+# Requires .env at the repo root with PORT / SERVE_STATIC_DIR (see .env.example).
+[Unit]
+Description=Tokyo Metro 3D Visualizer (API + Frontend, LAN single-service)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Projects/Tokyo-Metro-3D-Operation-Visualizer/backend
+EnvironmentFile=%h/Projects/Tokyo-Metro-3D-Operation-Visualizer/.env
+ExecStart=/usr/bin/node dist/server.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

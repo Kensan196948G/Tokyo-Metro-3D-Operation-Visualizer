@@ -11,6 +11,9 @@ export const config = {
   cacheDir: process.env.CACHE_DIR ?? './data/cache',
   fetchIntervalSeconds: parseInt(process.env.FETCH_INTERVAL_SECONDS ?? '15', 10),
   logLevel: process.env.LOG_LEVEL ?? 'info',
+  // When set, the API also serves the built frontend from this directory
+  // (single-service LAN deployment). Leave unset for Cloudflare Pages mode.
+  serveStaticDir: process.env.SERVE_STATIC_DIR ?? '',
   startTime: Date.now(),
 } as const;
 

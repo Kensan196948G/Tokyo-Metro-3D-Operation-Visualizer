@@ -66,6 +66,33 @@ npm run dev
 | GET | /api/status | データ取得状態（静的/RT 鮮度・失敗回数） |
 | POST | /api/admin/refetch | 手動再取得（ローカルのみ・静的+RT 並行） |
 
+## 🖥️ LAN 常駐サービス（systemd・単一サービス構成）
+
+backend が frontend のビルド成果物も配信する構成で、LAN 内へ常時公開できます。
+
+```bash
+# 1. ビルド
+cd frontend && npm run build && cd ../backend && npm run build && cd ..
+
+# 2. .env をリポジトリ直下に用意 (PORT / SERVE_STATIC_DIR を設定)
+cp .env.example .env  # PORT=3020, SERVE_STATIC_DIR=<絶対パス>/frontend/dist 等
+
+# 3. systemd ユーザーユニット登録（root 不要）
+cp systemd/metro3d-lan.service ~/.config/systemd/user/metro3d.service
+systemctl --user daemon-reload
+systemctl --user enable --now metro3d.service
+
+# 4. ブート時自動起動（ログイン不要で起動）
+loginctl enable-linger $USER
+```
+
+| 操作 | コマンド |
+|---|---|
+| 状態確認 | `systemctl --user status metro3d` |
+| ログ | `journalctl --user -u metro3d -f` |
+| 再起動 | `systemctl --user restart metro3d` |
+| 停止/無効化 | `systemctl --user disable --now metro3d` |
+
 ## 🔄 データ取得コマンド
 
 ```bash
