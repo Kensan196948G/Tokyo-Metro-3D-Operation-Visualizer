@@ -7,6 +7,7 @@ import { routesRoute } from './routes/routes.js';
 import { stationsRoute } from './routes/stations.js';
 import { realtimeRoute } from './routes/realtime.js';
 import { fetchAndNormalizeGtfs } from './services/gtfsFetcher.js';
+import { fetchAndDecodeRt } from './services/gtfsRtFetcher.js';
 
 async function start(): Promise<void> {
   validateConfig();
@@ -39,10 +40,14 @@ async function start(): Promise<void> {
         meta: { generatedAt: new Date().toISOString(), stale: false },
       });
     }
-    const result = await fetchAndNormalizeGtfs();
-    return reply.status(result.ok ? 200 : 502).send({
-      ok: result.ok,
-      data: result,
+    const [staticResult, rtResult] = await Promise.all([
+      fetchAndNormalizeGtfs(),
+      fetchAndDecodeRt(),
+    ]);
+    const ok = staticResult.ok || rtResult.success;
+    return reply.status(ok ? 200 : 502).send({
+      ok,
+      data: { static: staticResult, realtime: rtResult },
       meta: { generatedAt: new Date().toISOString(), stale: false },
     });
   });
