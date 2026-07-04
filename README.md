@@ -58,20 +58,34 @@ npm run dev
 | メソッド | パス | 内容 |
 |---|---|---|
 | GET | /api/health | API 状態確認 |
-| GET | /api/routes | 路線一覧 |
-| GET | /api/stations | 駅一覧 |
-| GET | /api/realtime/trains | 列車リアルタイム |
+| GET | /api/routes | 路線一覧（9 路線・レイヤー高さ付き） |
+| GET | /api/stations | 駅一覧（GTFS キャッシュ優先 / mock フォールバック） |
+| GET | /api/route-shapes | 路線形状（GTFS shapes 由来） |
+| GET | /api/realtime/trains | 列車リアルタイム（GTFS-RT / mock） |
 | GET | /api/realtime/alerts | アラート情報 |
-| GET | /api/status | データ取得状態 |
+| GET | /api/status | データ取得状態（静的/RT 鮮度・失敗回数） |
+| POST | /api/admin/refetch | 手動再取得（ローカルのみ・静的+RT 並行） |
+
+## 🔄 データ取得コマンド
+
+```bash
+cd backend
+npm run fetch:static     # GTFS 静的データ (zip) 取得→正規化→キャッシュ
+npm run fetch:realtime   # GTFS-RT (protobuf) 取得→デコード→キャッシュ
+```
+
+`.env` の `ODPT_API_TOKEN` / `ODPT_GTFS_URL` / `ODPT_GTFS_RT_URL` が必要。
+未設定・未取得時は自動的にモックデータで動作します。
 
 ## 🗺️ 開発フェーズ
 
 | フェーズ | 状態 | 内容 |
 |---|---|---|
-| Phase 1 | ✅ 完了 | 疑似データ 3D 表示 |
-| Phase 2 | 🔄 予定 | GTFS 静的データ連携 |
-| Phase 3 | 📋 予定 | GTFS-RT リアルタイム連携 |
+| Phase 1 | ✅ 完了 | 疑似データ 3D 表示（PR #1） |
+| Phase 2 | ✅ 完了 | GTFS 静的データ連携（PR #7） |
+| Phase 3 | ✅ 完了 | GTFS-RT リアルタイム連携（PR #8） |
 | Phase 4 | 📋 予定 | Cloudflare 公開 |
+| Phase 5 | 📋 予定 | UI 仕上げ・実データ検証 |
 
 ## 🔐 セキュリティ
 

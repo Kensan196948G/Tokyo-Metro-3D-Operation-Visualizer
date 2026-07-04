@@ -7,15 +7,17 @@ import {
   fetchHealth,
   fetchRoutes,
   fetchStations,
+  fetchRouteShapes,
   fetchTrains,
   fetchAlerts,
 } from './api/metroApi.js';
-import type { MetroRoute, MetroStation, MetroTrain, MetroAlert } from './types/metro.js';
+import type { MetroRoute, MetroStation, MetroRouteShape, MetroTrain, MetroAlert } from './types/metro.js';
 import { UPDATE_INTERVAL_MS } from './config/appConfig.js';
 
 // State
 let routes: MetroRoute[] = [];
 let stations: MetroStation[] = [];
+let shapes: MetroRouteShape[] = [];
 let trains: MetroTrain[] = [];
 let alerts: MetroAlert[] = [];
 
@@ -35,6 +37,17 @@ const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 const popup = document.getElementById('info-popup')!;
 
+// Alert/station text originates from external GTFS feeds — always escape
+// before inserting into innerHTML.
+function esc(value: unknown): string {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
 metro.renderer.domElement.addEventListener('mousemove', (e) => {
   const rect = metro.renderer.domElement.getBoundingClientRect();
   mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -52,10 +65,10 @@ metro.renderer.domElement.addEventListener('mousemove', (e) => {
     popup.style.top = `${e.clientY + 12}px`;
     if (data.type === 'station') {
       const s = data.station as MetroStation;
-      popup.innerHTML = `<h3>🚉 ${s.name}</h3><p>路線: ${s.routeIds.join(', ')}</p><p>座標: (${s.x.toFixed(1)}, ${s.z.toFixed(1)})</p>`;
+      popup.innerHTML = `<h3>🚉 ${esc(s.name)}</h3><p>路線: ${esc(s.routeIds.join(', '))}</p><p>座標: (${s.x.toFixed(1)}, ${s.z.toFixed(1)})</p>`;
     } else if (data.type === 'train') {
       const t = data.train as MetroTrain;
-      popup.innerHTML = `<h3>🚆 ${t.trainId}</h3><p>路線: ${t.routeId ?? '-'}</p><p>状態: ${t.status}</p>${t.delaySeconds ? `<p>遅延: ${t.delaySeconds}秒</p>` : ''}<p>出典: ${t.positionSource}</p>`;
+      popup.innerHTML = `<h3>🚆 ${esc(t.trainId)}</h3><p>路線: ${esc(t.routeId ?? '-')}</p><p>状態: ${esc(t.status)}</p>${t.delaySeconds ? `<p>遅延: ${Math.round(t.delaySeconds)}秒</p>` : ''}<p>出典: ${esc(t.positionSource)}</p>`;
     }
   } else {
     popup.style.display = 'none';
@@ -67,9 +80,9 @@ function updateRouteList(routes: MetroRoute[]): void {
   const el = document.getElementById('route-list')!;
   el.innerHTML = routes
     .map(
-      (r) => `<div class="route-item" data-route="${r.routeId}">
-        <span class="route-dot" style="background:${r.color}"></span>
-        <span class="route-name">${r.longName}</span>
+      (r) => `<div class="route-item" data-route="${esc(r.routeId)}">
+        <span class="route-dot" style="background:${esc(r.color)}"></span>
+        <span class="route-name">${esc(r.longName)}</span>
         <input type="checkbox" class="route-check" ${r.visible ? 'checked' : ''}>
       </div>`
     )
@@ -81,7 +94,7 @@ function updateRouteList(routes: MetroRoute[]): void {
       const route = routes.find((r) => r.routeId === routeId);
       if (route) {
         route.visible = checked;
-        routeLayer.update(stations, routes);
+        routeLayer.update(stations, routes, shapes);
         stationLayer.update(stations, routes);
         trainLayer.update(trains, routes);
       }
@@ -96,7 +109,7 @@ function updateAlertList(alerts: MetroAlert[]): void {
     return;
   }
   el.innerHTML = alerts
-    .map((a) => `<div class="alert-item alert-${a.severity}"><strong>${a.title}</strong>${a.description ? `<br>${a.description}` : ''}</div>`)
+    .map((a) => `<div class="alert-item alert-${esc(a.severity)}"><strong>${esc(a.title)}</strong>${a.description ? `<br>${esc(a.description)}` : ''}</div>`)
     .join('');
 }
 
@@ -104,7 +117,7 @@ function updateTrainList(trains: MetroTrain[]): void {
   const el = document.getElementById('train-list')!;
   const limited = trains.slice(0, 10);
   el.innerHTML = limited
-    .map((t) => `<div class="train-item">[${t.routeId ?? '?'}] ${t.trainId} - ${t.status}${t.delaySeconds ? ` (+${t.delaySeconds}s)` : ''}</div>`)
+    .map((t) => `<div class="train-item">[${esc(t.routeId ?? '?')}] ${esc(t.trainId)} - ${esc(t.status)}${t.delaySeconds ? ` (+${Math.round(t.delaySeconds)}s)` : ''}</div>`)
     .join('');
   if (trains.length > 10) {
     el.innerHTML += `<div style="font-size:11px;color:#8b949e;">他 ${trains.length - 10} 列車</div>`;
@@ -133,12 +146,15 @@ async function init(): Promise<void> {
   const health = await fetchHealth();
   setApiStatus(!!health);
 
-  routes = await fetchRoutes();
-  stations = await fetchStations();
-  trains = await fetchTrains();
-  alerts = await fetchAlerts();
+  [routes, stations, shapes, trains, alerts] = await Promise.all([
+    fetchRoutes(),
+    fetchStations(),
+    fetchRouteShapes(),
+    fetchTrains(),
+    fetchAlerts(),
+  ]);
 
-  routeLayer.update(stations, routes);
+  routeLayer.update(stations, routes, shapes);
   stationLayer.update(stations, routes);
   trainLayer.update(trains, routes);
 

@@ -2,6 +2,12 @@ import type { FastifyInstance } from 'fastify';
 import { generateMockTrains, generateMockAlerts } from '../services/normalizer.js';
 import { cacheStore } from '../services/cacheStore.js';
 import type { MetroTrain, MetroAlert } from '../domain/trainModel.js';
+import type { MetroRouteShape } from '../services/gtfsParser.js';
+import type { RtMeta } from '../services/gtfsRtFetcher.js';
+
+type GtfsMeta = { fetchedAt: string; stationCount: number; shapeCount: number };
+
+const RT_STALE_THRESHOLD_MS = 90_000;
 
 let trainCache: MetroTrain[] = [];
 let trainCacheTime = 0;
@@ -13,15 +19,18 @@ export async function realtimeRoute(app: FastifyInstance): Promise<void> {
     if (now - trainCacheTime > TRAIN_CACHE_TTL_MS) {
       // Try real cache, fallback to mock
       const cached = cacheStore.read<MetroTrain[]>('trains');
-      trainCache = cached ?? generateMockTrains();
+      trainCache = cached && cached.length > 0 ? cached : generateMockTrains();
       trainCacheTime = now;
     }
+    const rtMeta = cacheStore.read<RtMeta>('rt-meta');
+    const rtAge = rtMeta?.fetchedAt ? now - Date.parse(rtMeta.fetchedAt) : Infinity;
     return reply.send({
       ok: true,
       data: trainCache,
       meta: {
         generatedAt: new Date().toISOString(),
-        stale: false,
+        sourceUpdatedAt: rtMeta?.fetchedAt ?? undefined,
+        stale: !rtMeta?.success || rtAge > RT_STALE_THRESHOLD_MS,
       },
     });
   });
@@ -40,27 +49,35 @@ export async function realtimeRoute(app: FastifyInstance): Promise<void> {
   });
 
   app.get('/api/route-shapes', async (_req, reply) => {
-    // Phase 2: load real GTFS shapes. For now return empty array.
+    const shapes = cacheStore.read<MetroRouteShape[]>('route-shapes') ?? [];
     return reply.send({
       ok: true,
-      data: [],
+      data: shapes,
       meta: {
         generatedAt: new Date().toISOString(),
-        stale: false,
+        stale: shapes.length === 0,
       },
     });
   });
 
   app.get('/api/status', async (_req, reply) => {
+    const gtfsMeta = cacheStore.read<GtfsMeta>('gtfs-meta');
+    const rtMeta = cacheStore.read<RtMeta>('rt-meta');
+    const rtAge = rtMeta?.fetchedAt ? Date.now() - Date.parse(rtMeta.fetchedAt) : Infinity;
+    const rtStale = !rtMeta?.success || rtAge > RT_STALE_THRESHOLD_MS;
     return reply.send({
       ok: true,
       data: {
-        gtfsStaticFetchedAt: null,
-        gtfsRtFetchedAt: null,
-        gtfsRtFetchSuccess: false,
-        consecutiveFailures: 0,
-        stale: true,
-        dataSource: 'mock',
+        gtfsStaticFetchedAt: gtfsMeta?.fetchedAt ?? null,
+        gtfsStationCount: gtfsMeta?.stationCount ?? 0,
+        gtfsShapeCount: gtfsMeta?.shapeCount ?? 0,
+        gtfsRtFetchedAt: rtMeta?.fetchedAt ?? null,
+        gtfsRtFetchSuccess: rtMeta?.success ?? false,
+        gtfsRtTrainCount: rtMeta?.trainCount ?? 0,
+        consecutiveFailures: rtMeta?.consecutiveFailures ?? 0,
+        stale: rtStale,
+        dataSource: gtfsMeta ? 'gtfs' : 'mock',
+        realtimeSource: rtMeta?.success ? 'gtfs-rt' : 'mock',
       },
       meta: {
         generatedAt: new Date().toISOString(),

@@ -3,14 +3,15 @@
     "name": "Tokyo-Metro-3D-Operation-Visualizer",
     "start_date": "2026-07-04",
     "release_deadline": "2027-01-04",
-    "phase_mode": "development"
+    "phase_mode": "development",
+    "registered_at": "2026-07-04"
   },
-  "goal": "Phase 1: 疑似データ3D表示完成。フロントエンド・バックエンドの基盤構築",
-  "phase": "Build",
+  "goal": "Phase 1-3 実装完了。PR スタック (#1←#7←#8) の merge 後、Phase 4 Cloudflare デプロイ準備",
+  "phase": "Verify",
   "kpi": {
     "success_rate_target": 0.9,
-    "ci_success_rate": 0.0,
-    "test_pass_rate": 0.0,
+    "ci_success_rate": 1.0,
+    "test_pass_rate": 1.0,
     "security_critical": 0,
     "blocker_count": 0
   },
@@ -24,10 +25,25 @@
     "auto_issue_generation": true,
     "self_evolution": true
   },
-  "completed_issues": [],
+  "completed_issues": [2, 3, 4],
   "blocked_issues": [],
+  "open_prs": [
+    { "number": 1, "title": "Phase 1 基盤実装", "base": "main", "ci": "green", "needs": "human merge approval" },
+    { "number": 7, "title": "Phase 2 GTFS静的", "base": "feature/phase1-3d-visualization", "ci": "pending" },
+    { "number": 8, "title": "Phase 3 GTFS-RT", "base": "feature/phase2-gtfs-static", "ci": "pending" }
+  ],
   "learning": {
-    "failure_patterns": [],
-    "success_patterns": []
+    "failure_patterns": [
+      "vitest worker threads OOM on this host → pool:'forks' + singleFork で解決",
+      "テストが本番キャッシュ (data/cache) を汚染 → vitest env.CACHE_DIR で一時ディレクトリに分離",
+      "protobufjs はワイヤ未設定のスカラーをプロトタイプ経由でデフォルト値 0 として返す → hasOwnProperty で実在判定",
+      "npm EINTEGRITY エラー → npm cache clean --force で解消"
+    ],
+    "success_patterns": [
+      "Workflow による 39 ファイル並列生成 (5分・エラー0)",
+      "スタック PR 戦略 (#1←#7←#8) で main 保護と継続開発を両立",
+      "fflate zipSync でテスト内 GTFS zip フィクスチャ生成",
+      "gtfs-realtime-bindings 自身で protobuf テストフィクスチャをエンコード"
+    ]
   }
 }
