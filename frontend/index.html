@@ -1191,11 +1191,11 @@
         background: var(--gold);
       }
 
-      /* ---------- compass ---------- */
+      /* ---------- compass (top-right, clear of the timebar) ---------- */
       #compass {
         position: fixed;
-        right: 30px;
-        bottom: 34px;
+        right: 32px;
+        top: 118px;
         z-index: 19;
         width: 56px;
         height: 56px;
@@ -1204,6 +1204,19 @@
       #compass svg {
         width: 100%;
         height: 100%;
+      }
+
+      /* Driving is immersive: fade the model-view chrome behind the cab. */
+      body.cab-on #header,
+      body.cab-on #panel,
+      body.cab-on #panel-tab,
+      body.cab-on #timebar,
+      body.cab-on #facts,
+      body.cab-on #compass,
+      body.cab-on #info-popup {
+        opacity: 0 !important;
+        pointer-events: none !important;
+        transition: opacity 0.3s;
       }
 
       /* screenshot button */

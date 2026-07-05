@@ -58,8 +58,17 @@ export class CabModeController {
       cabKmh: HTMLElement;
       cabClock: HTMLElement;
       cabNotch: HTMLElement;
-    }
+    },
+    /** Notified on every mode change (e.g. hide 3D labels while in the cab). */
+    private onModeChange?: (mode: CabModeName) => void
   ) {}
+
+  private applyMode(mode: CabModeName): void {
+    this.mode = mode;
+    // Fade the model-view chrome away while driving — the cab is immersive.
+    document.body.classList.toggle('cab-on', mode === 'cab');
+    this.onModeChange?.(mode);
+  }
 
   get current(): CabModeName {
     return this.mode;
@@ -70,7 +79,7 @@ export class CabModeController {
     if (!entry) return;
     this.restoreMesh();
     this.trainId = trainId;
-    this.mode = 'chase';
+    this.applyMode('chase');
     this.hasLast = false;
     this.metro.cancelFlight();
     this.metro.setControlsEnabled(false);
@@ -91,7 +100,7 @@ export class CabModeController {
     if (!entry) return;
     this.restoreMesh();
     this.trainId = id;
-    this.mode = 'cab';
+    this.applyMode('cab');
     this.hasLast = false;
     this.metro.cancelFlight();
     this.metro.setControlsEnabled(false);
@@ -125,7 +134,7 @@ export class CabModeController {
       // Leave the orbit pivot at the train so the hand-back feels continuous.
       this.metro.controls.target.copy(entry.mesh.position);
     }
-    this.mode = 'none';
+    this.applyMode('none');
     this.trainId = null;
     this.els.chip.classList.remove('on');
     this.els.cab.classList.remove('on');

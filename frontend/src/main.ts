@@ -176,6 +176,11 @@ const cab = new CabModeController(
     cabKmh: byId('cab-kmh'),
     cabClock: byId('cab-clock'),
     cabNotch: byId('cab-notch'),
+  },
+  (mode) => {
+    // Billboard labels render through geometry (depthTest:false) and turn
+    // into giant white blobs at windshield distance — hide them in the cab.
+    labelLayer.getGroup().visible = mode !== 'cab';
   }
 );
 metro.onFrame((now) => cab.tick(now));
@@ -646,4 +651,8 @@ init().catch((err) => {
   console.error(err);
   dismissLoader();
 });
+// First refresh arrives early: the initial snapshot places trains with
+// from==to (no glide), so motion only starts at the next poll — pull that
+// forward so the scene (and cab speedometer) comes alive within seconds.
+setTimeout(update, 3000);
 setInterval(update, UPDATE_INTERVAL_MS);

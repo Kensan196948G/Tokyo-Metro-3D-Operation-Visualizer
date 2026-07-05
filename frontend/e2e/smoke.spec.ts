@@ -55,8 +55,9 @@ test('driver cab mode enters and exits', async ({ page }) => {
   await expect(page.locator('#cab-line')).not.toHaveText('—');
   await expect(page.locator('#cab-kmh')).toHaveText(/^\d+$/);
 
-  // Cab view artifact for humans
-  await page.waitForTimeout(1200);
+  // Cab view artifact for humans — wait past the early train refresh (3s)
+  // so the screenshot catches the train in motion.
+  await page.waitForTimeout(4200);
   await page.screenshot({ path: 'e2e-cab.png' });
 
   // ESC returns to the model view
