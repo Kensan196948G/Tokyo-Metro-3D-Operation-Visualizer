@@ -21,6 +21,11 @@ export async function realtimeRoute(app: FastifyInstance): Promise<void> {
       const cached = cacheStore.read<MetroTrain[]>('trains');
       trainCache = cached && cached.length > 0 ? cached : generateMockTrains();
       trainCacheTime = now;
+    } else if (trainCache.length === 0 || trainCache[0]?.positionSource === 'mock') {
+      // Mock trains are a pure function of wall-clock time and cost nothing to
+      // build — regenerate on every poll so clients always see fresh positions.
+      // (The TTL above only guards the disk read for real GTFS-RT data.)
+      trainCache = generateMockTrains();
     }
     const rtMeta = cacheStore.read<RtMeta>('rt-meta');
     const rtAge = rtMeta?.fetchedAt ? now - Date.parse(rtMeta.fetchedAt) : Infinity;
