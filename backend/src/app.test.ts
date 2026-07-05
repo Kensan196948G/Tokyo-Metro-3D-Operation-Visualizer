@@ -156,4 +156,16 @@ describe('POST /api/admin/refetch', () => {
     expect(body.data).toHaveProperty('static');
     expect(body.data).toHaveProperty('realtime');
   });
+
+  it('rejects requests arriving through Cloudflare (cf-* headers present)', async () => {
+    // cloudflared proxies from localhost, so the peer-address gate alone
+    // would pass internet traffic — cf headers must force a 403.
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/admin/refetch',
+      headers: { 'cf-connecting-ip': '203.0.113.10', 'cf-ray': '8f3a2b1c9d0e1234-NRT' },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error.code).toBe('FORBIDDEN');
+  });
 });

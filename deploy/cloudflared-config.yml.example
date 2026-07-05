@@ -1,0 +1,19 @@
+# Cloudflare Tunnel — 単一サービス公開設定 (railway.mirai-dx-platform.com)
+#
+# 配置先:   /etc/cloudflared/config.yml   (cloudflared service install 使用時)
+#      or   ~/.cloudflared/config.yml     (ユーザー実行時)
+#
+# <TUNNEL_ID> は `cloudflared tunnel create metro3d` の出力 (UUID) に置換。
+# credentials-file は tunnel create が生成した json のパスに合わせる。
+#
+# 手順の正本: docs/deployment.md
+
+tunnel: <TUNNEL_ID>
+credentials-file: /home/kensan/.cloudflared/<TUNNEL_ID>.json
+
+ingress:
+  # 単一サービス: backend(fastify) が frontend/dist も配信するため 1 ホストで完結
+  - hostname: railway.mirai-dx-platform.com
+    service: http://localhost:3020
+  # それ以外のホスト名は 404
+  - service: http_status:404

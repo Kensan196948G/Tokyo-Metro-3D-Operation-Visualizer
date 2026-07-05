@@ -6,16 +6,19 @@
     "phase_mode": "development",
     "registered_at": "2026-07-04"
   },
-  "goal": "Phase 5 UI仕上げ: Fable5版デザイン(グラスモーフィズムHUD)を模倣した滑らかなUIへ刷新 (#15/PR#16)。CI全green。main宛のため人間merge承認待ち",
+  "goal": "3検討事項対応: 実車風車両(PR#20) / JR東5路線+垂直再設計(PR#22) / Cloudflare公開準備 railway.mirai-dx-platform.com (PR#24予定)。各PRはmain宛のため人間merge承認制",
   "phase": "Verify",
   "release_status": "release-ready",
   "deploy": {
     "ready": true,
     "handbook": "docs/deployment.md",
+    "public_url_planned": "https://railway.mirai-dx-platform.com",
+    "architecture": "単一Tunnel (cloudflared → localhost:3020 metro3d.service, Pages不使用)",
+    "config_template": "deploy/cloudflared-config.yml.example",
     "human_prerequisites": [
       "ODPT アカウント登録とトークン発行 (https://developer.odpt.org/)",
-      "Cloudflare Pages / Tunnel セットアップ (課金・外部公開のため人間実行)",
-      "AC-006 実データ検証 (deployment.md §4 チェックリスト)"
+      "Cloudflare ゾーン確認 (mirai-dx-platform.com) / cloudflared login / tunnel create+route dns (人間実行)",
+      "AC-006 実データ検証 (deployment.md §3 チェックリスト)"
     ],
     "lan_demo": "http://192.168.0.185:3020 (systemd metro3d.service, linger有効)"
   },
@@ -25,8 +28,10 @@
     "test_pass_rate": 1.0,
     "security_critical": 0,
     "blocker_count": 0,
-    "tests_total": 43,
-    "e2e_on_ci": true
+    "tests_total": 47,
+    "e2e_on_ci": true,
+    "lines": 14,
+    "stations": 252
   },
   "execution": {
     "max_duration_minutes": 300,
@@ -38,11 +43,32 @@
     "auto_issue_generation": true,
     "self_evolution": true
   },
-  "completed_issues": [2, 3, 4, 6, 9],
+  "completed_issues": [
+    2,
+    3,
+    4,
+    6,
+    9,
+    15,
+    17,
+    19,
+    21
+  ],
   "blocked_issues": [],
   "open_issues": [
-    { "number": 5, "title": "Phase 4: Cloudflare デプロイ", "owner": "human", "note": "手順書完備・トークン/Cloudflare操作は人間境界" },
-    { "number": 15, "title": "UI刷新: Fable5版デザイン模倣", "owner": "cto", "pr": 16, "note": "CI全green(backend/frontend/e2e/coderabbit)。main宛のため人間merge承認待ち" }
+    {
+      "number": 5,
+      "title": "Phase 4: Cloudflare デプロイ",
+      "owner": "human",
+      "note": "具体化済み(#23)。railway.mirai-dx-platform.com 単一Tunnel。手順書/テンプレ/adminガード整備済み。Tunnel作成・DNSは人間実行"
+    },
+    {
+      "number": 23,
+      "title": "Cloudflare公開準備",
+      "owner": "cto",
+      "pr": "24予定",
+      "note": "adminガード+テンプレ+手順書改訂。PR-C としてレビュー中"
+    }
   ],
   "learning": {
     "failure_patterns": [
@@ -53,7 +79,8 @@
       "スタック子PRの base ブランチ削除で子が CLOSED (reopen不可) → 全マージ後に一括削除",
       "gh pr edit は Projects(classic) 廃止エラーで失敗することがある → REST API 直叩き",
       "このホストは headless Chrome 全滅 (SIGTRAP) → E2E は GitHub Actions 上で実行",
-      "pkill -f はコマンドライン一致で自分を殺す → fuser -k <port>/tcp を使用"
+      "pkill -f はコマンドライン一致で自分を殺す → fuser -k <port>/tcp を使用",
+      "cloudflared は localhost からプロキシするため remoteAddress 判定を素通し → cf-connecting-ip/cf-ray ヘッダ検出で403"
     ],
     "success_patterns": [
       "Workflow による 39 ファイル並列生成 (5分・エラー0)",
@@ -65,7 +92,10 @@
       "ライブサイト参照は curl で生HTML/CSS取得→デザイントークン(:root)抽出で忠実模倣",
       "深さ誇張は group.scale.y でなく位置(y)のみ乗算で形状歪みを回避",
       "Sprite駅名ラベルは CanvasTexture、リビルド時 texture.dispose() でGPUリーク防止",
-      "Tokyoアプリの時計は Intl.DateTimeFormat(timeZone:Asia/Tokyo) で閲覧TZ非依存"
+      "Tokyoアプリの時計は Intl.DateTimeFormat(timeZone:Asia/Tokyo) で閲覧TZ非依存",
+      "参照UIの模倣は fxtwitter サムネDL+curl生CSS取得→デザイントークン抽出が確実",
+      "station.y のような冗長フィールドは直値一括書換えでなくロード時導出でドリフト根絶",
+      "モック×実データ混在は operator 別に生成系を分離し concat (先頭要素での種別判定は破綻する)"
     ]
   },
   "session_log": [
@@ -73,7 +103,11 @@
       "date": "2026-07-04",
       "duration_minutes": 135,
       "summary": "ゼロから Release Ready まで: Phase1-3実装 → main統合 (PR#1,#12,#13) → LAN常駐サービス稼働 → リアルタイム流動表示 → CI E2E → デプロイ手順書",
-      "prs_merged": [1, 12, 13],
+      "prs_merged": [
+        1,
+        12,
+        13
+      ],
       "tests": "backend 39 + frontend 2 + e2e 2 = 43, all green"
     },
     {
@@ -83,6 +117,26 @@
       "issue": 15,
       "tests": "frontend typecheck/unit2/build ✓, backend 39 ✓, CI e2e ✓",
       "artifact_preview": "https://claude.ai/code/artifact/a2430197-9270-4070-b160-6d9eab95261f"
+    },
+    {
+      "date": "2026-07-05",
+      "session": 2,
+      "summary": "UI刷新2段(PR#16,#18 merged: グラスHUD+運転席モード統合) → 3検討事項: 実車風車両(PR#20)/JR東5路線+地下負値再設計(PR#22)/Cloudflare準備(PR#24)。14路線252駅42編成、backend42+frontend2+e2e3テスト",
+      "prs_merged": [
+        16,
+        18
+      ],
+      "prs_open": [
+        20,
+        22,
+        "24(PR-C)"
+      ],
+      "issues_closed": [
+        15,
+        17,
+        19,
+        21
+      ]
     }
   ]
 }
