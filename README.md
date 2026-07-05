@@ -30,22 +30,24 @@
 - **駅名ラベル**は Sprite ビルボード。主要駅＝乗換駅（2路線以上）を自動判定
 - 外部フォントは CDN 読込・オフライン時はシステムフォントへフォールバック
 
-## 📊 システム構成
+## 📊 システム構成（単一サービス + 単一 Cloudflare Tunnel）
 
 ```
 [ODPT / GTFS / GTFS-RT]
-        ↓
-[Ubuntu サーバー (backend/)]
-  - Fastify REST API
+        ↓ 常駐ポーリング (15s)
+[Ubuntu サーバー metro3d.service (backend/)]
+  - Fastify REST API (/api/*)
+  - frontend/dist 静的配信 (/)
   - GTFS-RT デコード
-  - JSON 配信
-        ↓ Cloudflare Tunnel
-[api.<domain>]
-        ↓
-[Cloudflare Pages (frontend/)]
+        ├── LAN: http://192.168.0.185:3020
+        └── cloudflared Tunnel
+              ↓
+[https://railway.mirai-dx-platform.com]
         ↓
 [ブラウザ - Three.js 3D表示]
 ```
+
+公開手順の正本: `docs/deployment.md`（Tunnel 作成・DNS は人間実行）
 
 ## 🚀 クイックスタート
 

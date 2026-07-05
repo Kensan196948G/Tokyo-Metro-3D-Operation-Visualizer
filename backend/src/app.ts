@@ -43,9 +43,16 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
 
   // Admin: manual refetch. Guarded by the TCP peer address (not the Host
   // header, which clients can spoof) so only local processes may trigger it.
+  // A Cloudflare Tunnel (cloudflared) proxies FROM localhost, so the peer
+  // check alone would pass for internet traffic — any cf-* proxy header
+  // therefore also rejects. (Clients can't strip headers Cloudflare adds.)
   app.post('/api/admin/refetch', async (req, reply) => {
     const remote = req.socket.remoteAddress ?? '';
-    const isLocal = remote === '127.0.0.1' || remote === '::1' || remote === '::ffff:127.0.0.1';
+    const viaCloudflare =
+      req.headers['cf-connecting-ip'] !== undefined || req.headers['cf-ray'] !== undefined;
+    const isLocal =
+      !viaCloudflare &&
+      (remote === '127.0.0.1' || remote === '::1' || remote === '::ffff:127.0.0.1');
     if (!isLocal) {
       return reply.status(403).send({
         ok: false,
