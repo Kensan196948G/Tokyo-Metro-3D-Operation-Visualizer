@@ -4,6 +4,10 @@ import { StationLayer } from './three/stationLayer.js';
 import { RouteLayer } from './three/routeLayer.js';
 import { TrainLayer } from './three/trainLayer.js';
 import { StationLabelLayer, type LabelMode } from './three/stationLabelLayer.js';
+import { PillarLayer } from './three/pillarLayer.js';
+import { CabModeController } from './ui/cabMode.js';
+import { TourController } from './ui/tour.js';
+import { FactsRotator } from './ui/facts.js';
 import {
   fetchHealth,
   fetchRoutes,
@@ -32,6 +36,10 @@ let alerts: MetroAlert[] = [];
 
 let depthScale = 1;
 let labelMode: LabelMode = 'major';
+let kmPerUnit = 1; // scene-unit → km, derived from real coordinates at init
+
+const stationById = new Map<string, MetroStation>();
+const routeById = new Map<string, MetroRoute>();
 
 // ---------------------------------------------------------------------------
 // Scene
@@ -42,8 +50,10 @@ const stationLayer = new StationLayer();
 const routeLayer = new RouteLayer();
 const trainLayer = new TrainLayer();
 const labelLayer = new StationLabelLayer();
+const pillarLayer = new PillarLayer();
 
 metro.scene.add(routeLayer.getGroup());
+metro.scene.add(pillarLayer.getGroup());
 metro.scene.add(stationLayer.getGroup());
 metro.scene.add(labelLayer.getGroup());
 metro.scene.add(trainLayer.getGroup());
@@ -70,32 +80,153 @@ function byId<T extends HTMLElement = HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
 }
 
+function routeHeightOf(station: MetroStation): number {
+  const primary = station.routeIds[0];
+  return (primary ? (routeById.get(primary)?.layerHeight ?? 0) : 0) * depthScale;
+}
+
+function haversineKm(aLat: number, aLon: number, bLat: number, bLon: number): number {
+  const R = 6371;
+  const dLat = ((bLat - aLat) * Math.PI) / 180;
+  const dLon = ((bLon - aLon) * Math.PI) / 180;
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((aLat * Math.PI) / 180) * Math.cos((bLat * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+/** Derives the scene-unit → km ratio from the two farthest-apart stations. */
+function computeKmPerUnit(): number {
+  if (stations.length < 2) return 1;
+  const a = stations[0];
+  let best = stations[1];
+  let bestD = 0;
+  for (const s of stations) {
+    const d = (s.x - a.x) ** 2 + (s.z - a.z) ** 2;
+    if (d > bestD) {
+      bestD = d;
+      best = s;
+    }
+  }
+  const sceneDist = Math.sqrt(bestD);
+  if (sceneDist < 1e-6) return 1;
+  return haversineKm(a.lat, a.lon, best.lat, best.lon) / sceneDist;
+}
+
 /** Rebuilds every depth-dependent layer from current state + depthScale. */
 function rebuildLayers(): void {
   routeLayer.update(stations, routes, shapes, depthScale);
   stationLayer.update(stations, routes, depthScale);
   labelLayer.update(stations, routes, depthScale);
+  pillarLayer.update(stations, routes, depthScale);
   trainLayer.update(trains, routes, depthScale);
 }
 
+/** Current time in Asia/Tokyo regardless of the viewer's timezone — this is a
+ * Tokyo transit visualiser, so the clock and rush-hour phases follow Tokyo. */
+function tokyoParts(): { h: number; m: number; s: number } {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Tokyo',
+    hourCycle: 'h23',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(new Date());
+  const get = (t: string): number => Number(parts.find((p) => p.type === t)?.value ?? '0');
+  return { h: get('hour'), m: get('minute'), s: get('second') };
+}
+
+function tokyoClockText(): string {
+  const { h, m, s } = tokyoParts();
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
 // ---------------------------------------------------------------------------
-// Hover popup (raycast against station + train meshes)
+// Chase / driver-cab controller + cinematic tour
+// ---------------------------------------------------------------------------
+const cab = new CabModeController(
+  metro,
+  {
+    getTrain: (id) => trainLayer.getTrain(id),
+    getStation: (id) => stationById.get(id),
+    getRoute: (id) => routeById.get(id),
+    getTerminals: (routeId) => {
+      const line = stations
+        .filter((s) => s.routeIds[0] === routeId)
+        .sort((a, b) => a.stationId.localeCompare(b.stationId));
+      if (line.length < 2) return undefined;
+      // Mock direction '0' progresses from first → last sorted station.
+      return { forward: line[line.length - 1].name, back: line[0].name };
+    },
+    kmPerUnit: () => kmPerUnit,
+    clockText: tokyoClockText,
+  },
+  {
+    chip: byId('chase'),
+    chipBadge: byId('chase-badge'),
+    chipLabel: byId('chase-label'),
+    cab: byId('cab'),
+    cabBadge: byId('cab-badge'),
+    cabLine: byId('cab-line'),
+    cabDest: byId('cab-dest'),
+    cabNow: byId('cab-now'),
+    cabNext: byId('cab-next'),
+    cabDist: byId('cab-dist'),
+    cabPfill: byId('cab-pfill'),
+    cabKmh: byId('cab-kmh'),
+    cabClock: byId('cab-clock'),
+    cabNotch: byId('cab-notch'),
+  },
+  (mode) => {
+    // Billboard labels render through geometry (depthTest:false) and turn
+    // into giant white blobs at windshield distance — hide them in the cab.
+    labelLayer.getGroup().visible = mode !== 'cab';
+  }
+);
+metro.onFrame((now) => cab.tick(now));
+
+const tour = new TourController(
+  metro,
+  {
+    cap: byId('tourcap'),
+    capMain: byId('tc-main'),
+    capSub: byId('tc-sub'),
+    exitBtn: byId('tour-exit'),
+  },
+  () => metro.setControlsEnabled(true)
+);
+
+/** Leaves any exclusive camera mode before starting another. */
+function leaveModes(): void {
+  if (cab.current !== 'none') cab.exit();
+  if (tour.active) tour.stop();
+}
+
+// ---------------------------------------------------------------------------
+// Hover popup + click-to-chase (raycast against station + train meshes)
 // ---------------------------------------------------------------------------
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 const popup = byId('info-popup');
 
-metro.renderer.domElement.addEventListener('mousemove', (e) => {
+function pickAt(clientX: number, clientY: number): THREE.Mesh | null {
   const rect = metro.renderer.domElement.getBoundingClientRect();
-  mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-  mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
+  mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(mouse, metro.camera);
   const interactables = [...stationLayer.getMeshes(), ...trainLayer.getMeshes()];
   const hits = raycaster.intersectObjects(interactables);
+  return hits.length > 0 ? (hits[0].object as THREE.Mesh) : null;
+}
 
-  if (hits.length > 0) {
-    const data = (hits[0].object as THREE.Mesh).userData;
+metro.renderer.domElement.addEventListener('mousemove', (e) => {
+  if (cab.current === 'cab') {
+    popup.style.display = 'none';
+    return;
+  }
+  const obj = pickAt(e.clientX, e.clientY);
+  if (obj) {
+    const data = obj.userData;
     popup.style.display = 'block';
     popup.style.left = `${e.clientX + 14}px`;
     popup.style.top = `${e.clientY + 14}px`;
@@ -111,15 +242,36 @@ metro.renderer.domElement.addEventListener('mousemove', (e) => {
         `<h3>${esc(t.routeId ?? '—')} ${esc(t.trainId)}</h3>` +
         `<p class="en">TRAIN · ${esc(t.positionSource)}</p>` +
         `<p>状態: ${esc(t.status)}</p>` +
-        (t.delaySeconds ? `<p>遅延: ${Math.round(t.delaySeconds)}秒</p>` : '');
+        (t.delaySeconds ? `<p>遅延: ${Math.round(t.delaySeconds)}秒</p>` : '') +
+        `<p style="color:var(--gold)">クリックで追尾</p>`;
     }
   } else {
     popup.style.display = 'none';
   }
 });
 
+// Click (not drag) on a train enters chase mode — reference v2's
+// 「列車をクリック → 追尾モード」.
+let downX = 0;
+let downY = 0;
+metro.renderer.domElement.addEventListener('pointerdown', (e) => {
+  downX = e.clientX;
+  downY = e.clientY;
+});
+metro.renderer.domElement.addEventListener('pointerup', (e) => {
+  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 5) return; // drag, not click
+  if (cab.current === 'cab') return;
+  const obj = pickAt(e.clientX, e.clientY);
+  if (obj?.userData['type'] === 'train') {
+    const t = obj.userData['train'] as MetroTrain;
+    if (tour.active) tour.stop();
+    cab.enterChase(t.trainId);
+    popup.style.display = 'none';
+  }
+});
+
 // ---------------------------------------------------------------------------
-// Line list (left panel) — row click toggles visibility
+// Line list (left panel) — row click toggles visibility, 運転 enters the cab
 // ---------------------------------------------------------------------------
 function stationCount(routeId: string): number {
   return stations.filter((s) => s.routeIds.includes(routeId)).length;
@@ -135,6 +287,7 @@ function updateLineList(): void {
         <span class="line-badge" style="color:${esc(color)}">${letter}</span>
         <span class="line-name">${esc(r.longName)}</span>
         <span class="line-count">${stationCount(r.routeId)}駅</span>
+        <button class="line-drive-btn" data-drive="${esc(r.routeId)}">運転</button>
       </div>`;
     })
     .join('');
@@ -149,6 +302,73 @@ function updateLineList(): void {
       rebuildLayers();
     });
   });
+  el.querySelectorAll<HTMLButtonElement>('.line-drive-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation(); // don't toggle the line row
+      const trainId = trainLayer.firstTrainOnRoute(btn.dataset['drive']!);
+      if (trainId) {
+        if (tour.active) tour.stop();
+        cab.enterCab(trainId);
+      }
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Station search (incremental, fly-to on select)
+// ---------------------------------------------------------------------------
+function wireSearch(): void {
+  const input = byId<HTMLInputElement>('search');
+  const res = byId('search-res');
+
+  const flyToStation = (s: MetroStation): void => {
+    leaveModes();
+    const y = routeHeightOf(s);
+    metro.flyTo(
+      { x: s.x + 26, y: Math.max(y, 0) + 22, z: s.z + 26 },
+      { x: s.x, y, z: s.z },
+      1600
+    );
+    res.classList.remove('show');
+    input.blur();
+  };
+
+  const render = (): void => {
+    const q = input.value.trim();
+    if (!q) {
+      res.classList.remove('show');
+      return;
+    }
+    const hits = stations.filter((s) => s.name.includes(q)).slice(0, 8);
+    if (hits.length === 0) {
+      res.classList.remove('show');
+      return;
+    }
+    res.innerHTML = hits
+      .map(
+        (s, i) => `<div class="sr-item" data-i="${i}">
+          <span>${esc(s.name)}</span>
+          <span class="sr-badges">${s.routeIds
+            .map((r) => `<i style="color:${esc(ROUTE_COLORS[r] ?? '#8a94ab')}">${esc(r)}</i>`)
+            .join('')}</span>
+        </div>`
+      )
+      .join('');
+    res.classList.add('show');
+    res.querySelectorAll<HTMLElement>('.sr-item').forEach((item) => {
+      // mousedown (not click) so it fires before the input's blur hides the list
+      item.addEventListener('mousedown', () => flyToStation(hits[Number(item.dataset['i'])]));
+    });
+  };
+
+  input.addEventListener('input', render);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const first = stations.find((s) => s.name.includes(input.value.trim()));
+      if (first) flyToStation(first);
+    }
+  });
+  input.addEventListener('blur', () => setTimeout(() => res.classList.remove('show'), 150));
 }
 
 // ---------------------------------------------------------------------------
@@ -176,24 +396,8 @@ function setApiStatus(ok: boolean): void {
   text.textContent = ok ? '接続中' : '未接続';
 }
 
-/** Current time in Asia/Tokyo regardless of the viewer's timezone — this is a
- * Tokyo transit visualiser, so the clock and rush-hour phases follow Tokyo. */
-function tokyoParts(): { h: number; m: number; s: number } {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Tokyo',
-    hourCycle: 'h23',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).formatToParts(new Date());
-  const get = (t: string): number => Number(parts.find((p) => p.type === t)?.value ?? '0');
-  return { h: get('hour'), m: get('minute'), s: get('second') };
-}
-
 function setLastUpdate(): void {
-  const { h, m, s } = tokyoParts();
-  byId('last-update').textContent =
-    `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  byId('last-update').textContent = tokyoClockText();
 }
 
 function updateStats(): void {
@@ -305,6 +509,8 @@ function wireControls(): void {
     trainLayer.getGroup().visible = on;
   });
   bindToggle('toggle-pulse', (on) => trainLayer.setPulseEnabled(on));
+  bindToggle('toggle-pillars', (on) => pillarLayer.setVisible(on));
+  bindToggle('toggle-rotate', (on) => metro.setAutoRotate(on));
 
   // Play / pause (freezes train motion)
   const playbtn = byId('playbtn');
@@ -315,9 +521,66 @@ function wireControls(): void {
     playbtn.title = paused ? '再開' : '一時停止';
   });
 
-  // View buttons
-  byId('view-fit').addEventListener('click', () => metro.fitToPoints(stations));
-  byId('view-reset').addEventListener('click', () => metro.resetCamera());
+  // Camera presets
+  document.querySelectorAll<HTMLButtonElement>('.viewbtns button[data-view]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      leaveModes();
+      metro.setView(btn.dataset['view'] as 'bird' | 'top' | 'side' | 'under', stations);
+    });
+  });
+
+  // Cinematic tour
+  byId('tour-btn').addEventListener('click', () => {
+    leaveModes();
+    metro.setControlsEnabled(false);
+    tour.start(stations, (s) => routeHeightOf(s));
+  });
+  byId('tour-exit').addEventListener('click', () => tour.stop());
+
+  // Driver cab: whole-network button picks the first live train
+  byId('drive-btn').addEventListener('click', () => {
+    const first = trains[0];
+    if (!first) return;
+    if (tour.active) tour.stop();
+    cab.enterCab(first.trainId);
+  });
+  byId('cab-exit').addEventListener('click', () => cab.exit());
+  byId('chase-cab').addEventListener('click', () => cab.enterCab());
+  byId('chase-exit').addEventListener('click', () => cab.exit());
+
+  // ESC backs out of the current exclusive mode
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (cab.current !== 'none') cab.exit();
+    else if (tour.active) tour.stop();
+  });
+
+  // Screenshot — render explicitly first so the buffer is fresh when read.
+  byId('shotbtn').addEventListener('click', () => {
+    metro.renderer.render(metro.scene, metro.camera);
+    const a = document.createElement('a');
+    a.href = metro.renderer.domElement.toDataURL('image/png');
+    a.download = `tokyo-metro-3d-${Date.now()}.png`;
+    a.click();
+  });
+
+  wireSearch();
+}
+
+// ---------------------------------------------------------------------------
+// Compass — north is -Z in scene space (z = -(lat - CENTER_LAT))
+// ---------------------------------------------------------------------------
+function wireCompass(): void {
+  const needle = document.getElementById('compass-needle');
+  if (!needle) return;
+  let lastDeg = NaN;
+  metro.onFrame(() => {
+    const deg = Math.round(metro.getAzimuthDeg());
+    if (deg !== lastDeg) {
+      lastDeg = deg;
+      needle.setAttribute('transform', `rotate(${deg}, 30, 30)`);
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -332,6 +595,7 @@ function dismissLoader(): void {
 
 async function init(): Promise<void> {
   wireControls();
+  wireCompass();
   tickClock();
   setInterval(tickClock, 1000);
 
@@ -346,6 +610,12 @@ async function init(): Promise<void> {
     fetchAlerts(),
   ]);
 
+  stationById.clear();
+  for (const s of stations) stationById.set(s.stationId, s);
+  routeById.clear();
+  for (const r of routes) routeById.set(r.routeId, r);
+  kmPerUnit = computeKmPerUnit();
+
   rebuildLayers();
   labelLayer.setMode(labelMode);
   metro.fitToPoints(stations); // frame the whole network on first load
@@ -357,6 +627,8 @@ async function init(): Promise<void> {
   updateDataSource();
   setLastUpdate();
   dismissLoader();
+
+  new FactsRotator(byId('f-body'), byId('f-dots')).start();
 }
 
 // Periodic refresh of live data
@@ -379,4 +651,8 @@ init().catch((err) => {
   console.error(err);
   dismissLoader();
 });
+// First refresh arrives early: the initial snapshot places trains with
+// from==to (no glide), so motion only starts at the next poll — pull that
+// forward so the scene (and cab speedometer) comes alive within seconds.
+setTimeout(update, 3000);
 setInterval(update, UPDATE_INTERVAL_MS);

@@ -82,5 +82,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: e2e-scene
-          path: frontend/e2e-scene.png
+          path: |
+            frontend/e2e-scene.png
+            frontend/e2e-cab.png
           if-no-files-found: ignore

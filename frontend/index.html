@@ -681,6 +681,570 @@
         color: var(--accent);
       }
 
+      /* ---------- station search ---------- */
+      #search-wrap {
+        position: relative;
+        margin-bottom: 4px;
+      }
+      #search {
+        width: 100%;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 8px;
+        padding: 8px 11px;
+        color: var(--ink);
+        font-family: var(--jp);
+        font-size: 12.5px;
+        outline: none;
+        transition: 0.15s;
+      }
+      #search:focus {
+        border-color: rgba(77, 163, 255, 0.5);
+        background: rgba(77, 163, 255, 0.08);
+      }
+      #search::placeholder {
+        color: var(--ink-dim);
+      }
+      #search-res {
+        position: absolute;
+        top: calc(100% + 4px);
+        left: 0;
+        right: 0;
+        z-index: 5;
+        background: rgba(10, 14, 24, 0.97);
+        border: 1px solid var(--panel-border);
+        border-radius: 10px;
+        overflow: hidden;
+        display: none;
+        box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
+      }
+      #search-res.show {
+        display: block;
+      }
+      .sr-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 11px;
+        cursor: pointer;
+        font-size: 12px;
+        transition: 0.12s;
+      }
+      .sr-item:hover {
+        background: rgba(77, 163, 255, 0.16);
+      }
+      .sr-badges {
+        display: flex;
+        gap: 3px;
+        margin-left: auto;
+      }
+      .sr-badges i {
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        font-style: normal;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--mono);
+        font-weight: 700;
+        font-size: 8px;
+        color: #fff;
+        border: 1.5px solid currentColor;
+        background: #0b0e16;
+      }
+
+      /* per-line drive button */
+      .line-drive-btn {
+        border: 1px solid rgba(255, 209, 102, 0.3);
+        background: rgba(255, 209, 102, 0.06);
+        color: var(--gold);
+        font-family: var(--jp);
+        font-size: 9.5px;
+        padding: 3px 7px;
+        border-radius: 6px;
+        cursor: pointer;
+        flex: none;
+        letter-spacing: 0.08em;
+        transition: 0.15s;
+      }
+      .line-drive-btn:hover {
+        background: rgba(255, 209, 102, 0.25);
+        border-color: rgba(255, 209, 102, 0.6);
+      }
+
+      /* tour / driver launch buttons */
+      .tour-btn {
+        grid-column: 1 / -1;
+        border: 1px solid rgba(255, 209, 102, 0.45) !important;
+        background: rgba(255, 209, 102, 0.1) !important;
+        color: var(--gold) !important;
+        font-weight: 700;
+      }
+      .tour-btn:hover {
+        background: rgba(255, 209, 102, 0.24) !important;
+        border-color: rgba(255, 209, 102, 0.7) !important;
+      }
+      .drive-btn {
+        grid-column: 1 / -1;
+        border: 1px solid rgba(255, 209, 102, 0.45) !important;
+        background: linear-gradient(90deg, rgba(255, 209, 102, 0.16), rgba(255, 150, 60, 0.12)) !important;
+        color: var(--gold) !important;
+        font-weight: 700;
+      }
+      .drive-btn:hover {
+        background: rgba(255, 209, 102, 0.28) !important;
+      }
+
+      /* ---------- chase chip ---------- */
+      #chase {
+        position: fixed;
+        top: 96px;
+        left: 50%;
+        transform: translate(-50%, -8px);
+        z-index: 25;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 12px 9px 14px;
+        background: var(--panel);
+        border: 1px solid rgba(255, 209, 102, 0.35);
+        border-radius: 12px;
+        backdrop-filter: blur(18px);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+        opacity: 0;
+        pointer-events: none;
+        transition: 0.25s;
+      }
+      #chase.on {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translate(-50%, 0);
+      }
+      #chase .line-badge {
+        width: 22px;
+        height: 22px;
+        font-size: 11px;
+      }
+      #chase-label {
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+      }
+      #chase-sub {
+        font-family: var(--mono);
+        font-size: 9.5px;
+        letter-spacing: 0.2em;
+        color: var(--gold);
+      }
+      #chase button {
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--ink);
+        font-family: var(--jp);
+        font-size: 11px;
+        padding: 5px 10px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: 0.15s;
+      }
+      #chase button:hover {
+        background: rgba(255, 255, 255, 0.14);
+      }
+      #chase-cab {
+        border-color: rgba(255, 209, 102, 0.4) !important;
+        background: rgba(255, 209, 102, 0.1) !important;
+        color: var(--gold) !important;
+      }
+      #chase-cab:hover {
+        background: rgba(255, 209, 102, 0.22) !important;
+      }
+
+      /* ---------- driver cab overlay ---------- */
+      #cab {
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.45s;
+      }
+      #cab.on {
+        opacity: 1;
+      }
+      .cab-pillar {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 7vw;
+        background: linear-gradient(90deg, #0a0c10 55%, rgba(10, 12, 16, 0) 100%);
+      }
+      .cab-pillar.r {
+        right: 0;
+        transform: scaleX(-1);
+      }
+      .cab-roof {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 9vh;
+        background: linear-gradient(180deg, #0a0c10 30%, rgba(10, 12, 16, 0) 100%);
+      }
+      .cab-console {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 17vh;
+        min-height: 112px;
+        background: linear-gradient(180deg, rgba(13, 16, 21, 0) 0%, #0d1015 26%, #0a0c10 100%);
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .cab-console::before {
+        content: '';
+        position: absolute;
+        top: 26%;
+        left: 8%;
+        right: 8%;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+      }
+      .cab-speedo {
+        position: absolute;
+        bottom: 2.2vh;
+        left: 50%;
+        transform: translateX(-50%);
+        text-align: center;
+      }
+      .cab-speedo .kmh {
+        font-family: var(--mono);
+        font-size: clamp(34px, 4.6vh, 52px);
+        font-weight: 700;
+        color: #7cff9b;
+        text-shadow: 0 0 14px rgba(124, 255, 155, 0.5);
+        line-height: 1;
+        letter-spacing: 0.04em;
+        font-variant-numeric: tabular-nums;
+      }
+      .cab-speedo .unit {
+        font-size: 10px;
+        color: #6b7684;
+        letter-spacing: 0.3em;
+        margin-top: 3px;
+      }
+      .cab-notch {
+        display: flex;
+        gap: 3px;
+        justify-content: center;
+        margin-top: 7px;
+      }
+      .cab-notch i {
+        width: 16px;
+        height: 5px;
+        border-radius: 2px;
+        background: #232a33;
+      }
+      .cab-notch i.lit {
+        background: var(--gold);
+        box-shadow: 0 0 6px rgba(255, 209, 102, 0.6);
+      }
+      .cab-notch i.brake.lit {
+        background: #ff5d5d;
+        box-shadow: 0 0 6px rgba(255, 93, 93, 0.6);
+      }
+      .cab-clockish {
+        position: absolute;
+        bottom: 3vh;
+        left: 11%;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: #8fa0b3;
+        letter-spacing: 0.12em;
+      }
+      .cab-clockish b {
+        color: #e8ecf2;
+        font-size: 17px;
+        font-variant-numeric: tabular-nums;
+      }
+      #cab-exit {
+        position: absolute;
+        bottom: 3vh;
+        right: 11%;
+        pointer-events: auto;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--ink);
+        font-family: var(--jp);
+        font-size: 11.5px;
+        padding: 8px 16px;
+        border-radius: 99px;
+        cursor: pointer;
+        transition: 0.15s;
+      }
+      #cab-exit:hover {
+        background: rgba(255, 255, 255, 0.14);
+      }
+      .cab-hud {
+        position: absolute;
+        top: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: min(680px, 92vw);
+        background: rgba(8, 11, 18, 0.72);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(120, 160, 255, 0.16);
+        border-radius: 14px;
+        padding: 10px 18px 12px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+      }
+      .cab-hud .row1 {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .cab-hud .row1 .line-badge {
+        width: 30px;
+        height: 30px;
+        font-size: 14px;
+      }
+      .cab-line-name b {
+        font-size: 15px;
+        color: #fff;
+      }
+      .cab-dest {
+        margin-left: auto;
+        font-size: 11px;
+        color: #aeb9c6;
+        text-align: right;
+        white-space: nowrap;
+      }
+      .cab-dest b {
+        display: block;
+        font-size: 14px;
+        color: var(--gold);
+      }
+      .cab-hud .row2 {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 14px;
+        margin-top: 8px;
+      }
+      .cab-hud .sta {
+        width: 40%;
+      }
+      .cab-hud .sta .cap {
+        font-size: 9.5px;
+        letter-spacing: 0.28em;
+        color: #7e8a99;
+        font-family: var(--mono);
+      }
+      .cab-hud .sta .nm {
+        font-size: clamp(19px, 2.8vw, 26px);
+        font-weight: 800;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .cab-hud .sta.next {
+        text-align: right;
+      }
+      .cab-hud .sta.next .nm {
+        color: var(--gold);
+      }
+      .cab-mid {
+        flex: 1;
+        text-align: center;
+      }
+      #cab-dist {
+        font-family: var(--mono);
+        font-size: 14px;
+        color: #e8ecf2;
+        white-space: nowrap;
+      }
+      .cab-pbar {
+        height: 5px;
+        border-radius: 3px;
+        background: #232a33;
+        margin-top: 6px;
+        overflow: hidden;
+      }
+      #cab-pfill {
+        height: 100%;
+        width: 0%;
+        border-radius: 3px;
+        background: var(--gold);
+        transition: width 0.3s linear;
+      }
+
+      /* ---------- cinematic tour ---------- */
+      #tourcap {
+        position: fixed;
+        left: 50%;
+        bottom: 118px;
+        transform: translate(-50%, 14px);
+        z-index: 26;
+        text-align: center;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.6s, transform 0.6s;
+        max-width: min(760px, 92vw);
+      }
+      #tourcap.on {
+        opacity: 1;
+        transform: translate(-50%, 0);
+      }
+      .tc-kicker {
+        font-family: var(--mono);
+        font-size: 9.5px;
+        letter-spacing: 0.5em;
+        color: var(--gold);
+        margin-bottom: 10px;
+      }
+      .tc-main {
+        font-size: clamp(17px, 2.6vw, 26px);
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        line-height: 1.6;
+        text-shadow: 0 2px 18px rgba(0, 0, 0, 0.9), 0 0 40px rgba(0, 0, 0, 0.6);
+      }
+      .tc-sub {
+        margin-top: 8px;
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.18em;
+        color: var(--ink-dim);
+      }
+      #tour-exit {
+        position: fixed;
+        top: 96px;
+        right: 30px;
+        z-index: 26;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        background: var(--panel);
+        color: var(--ink);
+        font-family: var(--jp);
+        font-size: 11.5px;
+        padding: 8px 16px;
+        border-radius: 99px;
+        cursor: pointer;
+        backdrop-filter: blur(14px);
+        opacity: 0;
+        pointer-events: none;
+        transition: 0.3s;
+      }
+      #tour-exit.on {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      #tour-exit:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+
+      /* ---------- facts card ---------- */
+      #facts {
+        position: fixed;
+        right: 30px;
+        bottom: 108px;
+        z-index: 19;
+        width: min(300px, 80vw);
+        pointer-events: none;
+        background: var(--panel);
+        border: 1px solid var(--panel-border);
+        border-radius: 12px;
+        backdrop-filter: blur(18px);
+        box-shadow: 0 14px 44px rgba(0, 0, 0, 0.5);
+        padding: 13px 16px;
+        transition: opacity 0.3s;
+      }
+      .f-tag {
+        font-family: var(--mono);
+        font-size: 9px;
+        letter-spacing: 0.4em;
+        color: var(--gold);
+        margin-bottom: 7px;
+      }
+      .f-body {
+        font-size: 12px;
+        line-height: 1.75;
+        color: var(--ink);
+        min-height: 3.4em;
+        transition: opacity 0.5s;
+      }
+      .f-body.fade {
+        opacity: 0;
+      }
+      .f-dots {
+        display: flex;
+        gap: 5px;
+        margin-top: 9px;
+      }
+      .f-dots i {
+        width: 14px;
+        height: 2px;
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.14);
+        transition: 0.3s;
+      }
+      .f-dots i.on {
+        background: var(--gold);
+      }
+
+      /* ---------- compass (top-right, clear of the timebar) ---------- */
+      #compass {
+        position: fixed;
+        right: 32px;
+        top: 118px;
+        z-index: 19;
+        width: 56px;
+        height: 56px;
+        pointer-events: none;
+      }
+      #compass svg {
+        width: 100%;
+        height: 100%;
+      }
+
+      /* Driving is immersive: fade the model-view chrome behind the cab. */
+      body.cab-on #header,
+      body.cab-on #panel,
+      body.cab-on #panel-tab,
+      body.cab-on #timebar,
+      body.cab-on #facts,
+      body.cab-on #compass,
+      body.cab-on #info-popup {
+        opacity: 0 !important;
+        pointer-events: none !important;
+        transition: opacity 0.3s;
+      }
+
+      /* screenshot button */
+      #shotbtn {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        flex: none;
+        background: rgba(255, 255, 255, 0.05);
+        cursor: pointer;
+        font-size: 15px;
+        transition: 0.15s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #shotbtn:hover {
+        background: rgba(77, 163, 255, 0.2);
+      }
+
+      @media (max-width: 900px) {
+        #facts,
+        #compass {
+          display: none;
+        }
+      }
+
       /* entrance animation */
       @keyframes rise {
         from {
@@ -747,6 +1311,12 @@
       <!-- control panel -->
       <aside id="panel">
         <div class="scroll">
+          <div class="sec-label">Search<span class="jp">駅検索</span></div>
+          <div id="search-wrap">
+            <input id="search" placeholder="駅名を入力（例: 大手町）" autocomplete="off" />
+            <div id="search-res"></div>
+          </div>
+
           <div class="sec-label">Lines<span class="jp">路線</span></div>
           <div id="line-list"></div>
 
@@ -773,20 +1343,31 @@
           <div class="toggle-row on" id="toggle-pulse">
             遅延パルス<span class="sw"></span>
           </div>
+          <div class="toggle-row on" id="toggle-pillars">
+            模型支柱（地上との接続）<span class="sw"></span>
+          </div>
+          <div class="toggle-row" id="toggle-rotate">
+            自動回転<span class="sw"></span>
+          </div>
 
           <div class="sec-label">Alerts<span class="jp">運行情報</span></div>
           <div id="alert-list"></div>
 
-          <div class="sec-label">View<span class="jp">視点</span></div>
+          <div class="sec-label">Camera<span class="jp">視点</span></div>
           <div class="viewbtns">
-            <button id="view-fit">全体表示</button>
-            <button id="view-reset">リセット</button>
+            <button data-view="bird">鳥瞰</button>
+            <button data-view="top">真上</button>
+            <button data-view="side">断面（横）</button>
+            <button data-view="under">地底から</button>
+            <button id="tour-btn" class="tour-btn">▶ シネマティックツアー</button>
+            <button id="drive-btn" class="drive-btn">🚇 運転席モード — かぶりつき走行</button>
           </div>
         </div>
         <footer>
           出典: 公共交通オープンデータ(ODPT) / 東京地下鉄株式会社<br />
           地図: © OpenStreetMap contributors / © CARTO<br />
-          ⚠️ 非公式の可視化PoC。運行情報の正確性は保証しません。
+          ⚠️ 非公式の可視化PoC。運行情報の正確性は保証しません。<br />
+          <b style="color: var(--gold)">列車をクリック → 追尾モード（ESCで解除）</b>
         </footer>
       </aside>
       <div id="panel-tab">◂ PANEL</div>
@@ -812,6 +1393,84 @@
           <div id="train-count">0</div>
           <span>運行中</span>
         </div>
+        <button id="shotbtn" title="スクリーンショット保存">📷</button>
+      </div>
+
+      <!-- chase chip (train follow mode) -->
+      <div id="chase">
+        <span class="line-badge" id="chase-badge">G</span>
+        <div>
+          <div id="chase-label">—</div>
+          <div id="chase-sub">追尾中 — ESCで解除</div>
+        </div>
+        <button id="chase-cab">運転台</button>
+        <button id="chase-exit">✕ 解除</button>
+      </div>
+
+      <!-- driver cab overlay (integrated, no iframe) -->
+      <div id="cab">
+        <div class="cab-roof"></div>
+        <div class="cab-pillar"></div>
+        <div class="cab-pillar r"></div>
+        <div class="cab-hud">
+          <div class="row1">
+            <span class="line-badge" id="cab-badge">G</span>
+            <div class="cab-line-name"><b id="cab-line">—</b></div>
+            <div class="cab-dest">ゆき<b id="cab-dest">—</b></div>
+          </div>
+          <div class="row2">
+            <div class="sta now">
+              <div class="cap">NOW ── いま</div>
+              <div class="nm" id="cab-now">—</div>
+            </div>
+            <div class="cab-mid">
+              <div id="cab-dist"></div>
+              <div class="cab-pbar"><div id="cab-pfill"></div></div>
+            </div>
+            <div class="sta next">
+              <div class="cap">つぎ ── NEXT</div>
+              <div class="nm" id="cab-next">—</div>
+            </div>
+          </div>
+        </div>
+        <div class="cab-console">
+          <div class="cab-clockish">TIME<br /><b id="cab-clock">--:--:--</b></div>
+          <div class="cab-speedo">
+            <div class="kmh" id="cab-kmh">0</div>
+            <div class="unit">KM/H 概算</div>
+            <div class="cab-notch" id="cab-notch">
+              <i class="brake"></i><i class="brake"></i><i></i><i></i><i></i><i></i><i></i>
+            </div>
+          </div>
+          <button id="cab-exit">✕ 模型に戻る</button>
+        </div>
+      </div>
+
+      <!-- cinematic tour caption -->
+      <div id="tourcap">
+        <div class="tc-kicker">CINEMATIC TOUR</div>
+        <div class="tc-main" id="tc-main"></div>
+        <div class="tc-sub" id="tc-sub"></div>
+      </div>
+      <button id="tour-exit">✕ ツアーを終了（ESC）</button>
+
+      <!-- facts card -->
+      <div id="facts">
+        <div class="f-tag">TOKYO METRO FACTS</div>
+        <div class="f-body" id="f-body"></div>
+        <div class="f-dots" id="f-dots"></div>
+      </div>
+
+      <!-- compass (north = -Z) -->
+      <div id="compass">
+        <svg viewBox="0 0 60 60">
+          <circle cx="30" cy="30" r="27" fill="rgba(10,14,24,.7)" stroke="rgba(255,255,255,.18)" />
+          <g id="compass-needle">
+            <path d="M30 8 L34 30 L30 26 L26 30 Z" fill="#4da3ff" />
+            <path d="M30 52 L34 30 L30 34 L26 30 Z" fill="rgba(255,255,255,.25)" />
+          </g>
+          <text x="30" y="6" text-anchor="middle" font-size="7" fill="#8a94ab">N</text>
+        </svg>
       </div>
 
       <!-- hover popup -->

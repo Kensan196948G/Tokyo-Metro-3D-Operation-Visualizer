@@ -106,4 +106,18 @@ export class TrainLayer {
   getMeshes(): THREE.Mesh[] {
     return Array.from(this.entries.values()).map((e) => e.mesh);
   }
+
+  /** Live mesh + latest report for one train (undefined once it leaves the feed). */
+  getTrain(trainId: string): { mesh: THREE.Mesh; train: MetroTrain } | undefined {
+    const entry = this.entries.get(trainId);
+    return entry ? { mesh: entry.mesh, train: entry.train } : undefined;
+  }
+
+  /** First active train on a route — entry point for per-line driver mode. */
+  firstTrainOnRoute(routeId: string): string | undefined {
+    for (const [id, entry] of this.entries) {
+      if (entry.train.routeId === routeId) return id;
+    }
+    return undefined;
+  }
 }
