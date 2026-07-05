@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import fs from 'node:fs';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from './app.js';
+import { cacheStore } from './services/cacheStore.js';
 
 let app: FastifyInstance;
 
@@ -32,15 +33,24 @@ describe('GET /api/health', () => {
 });
 
 describe('GET /api/routes', () => {
-  it('returns all 9 Tokyo Metro lines with layer heights', async () => {
+  it('returns 9 metro + 5 JR lines with distinct layer heights', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/routes' });
     const body = res.json();
     expect(body.ok).toBe(true);
-    expect(body.data).toHaveLength(9);
+    expect(body.data).toHaveLength(14);
     const codes = body.data.map((r: { routeId: string }) => r.routeId).sort();
-    expect(codes).toEqual(['C', 'F', 'G', 'H', 'M', 'N', 'T', 'Y', 'Z']);
+    expect(codes).toEqual([
+      'C', 'F', 'G', 'H', 'JA', 'JB', 'JC', 'JK', 'JY', 'M', 'N', 'T', 'Y', 'Z',
+    ]);
     const heights = new Set(body.data.map((r: { layerHeight: number }) => r.layerHeight));
-    expect(heights.size).toBe(9); // all distinct layers
+    expect(heights.size).toBe(14); // all distinct layers
+
+    // Vertical convention: subway below ground, JR surface at/above ground.
+    for (const r of body.data) {
+      expect(['TokyoMetro', 'JR-East']).toContain(r.operator);
+      if (r.operator === 'TokyoMetro') expect(r.layerHeight).toBeLessThan(0);
+      else expect(r.layerHeight).toBeGreaterThan(0);
+    }
   });
 });
 
@@ -49,11 +59,11 @@ describe('GET /api/stations', () => {
     const res = await app.inject({ method: 'GET', url: '/api/stations' });
     const body = res.json();
     expect(body.ok).toBe(true);
-    expect(body.data.length).toBeGreaterThanOrEqual(170);
+    expect(body.data.length).toBeGreaterThanOrEqual(250);
     const linesWithStations = new Set(
       body.data.map((s: { routeIds: string[] }) => s.routeIds[0])
     );
-    for (const code of ['G', 'M', 'H', 'T', 'C', 'Y', 'Z', 'N', 'F']) {
+    for (const code of ['G', 'M', 'H', 'T', 'C', 'Y', 'Z', 'N', 'F', 'JY', 'JC', 'JK', 'JB', 'JA']) {
       expect(linesWithStations.has(code)).toBe(true);
     }
   });
@@ -72,6 +82,35 @@ describe('GET /api/stations', () => {
 });
 
 describe('GET /api/realtime/trains', () => {
+  // Runs FIRST in this block: the route module reads the disk cache once per
+  // TTL, so the fixture must be on disk before the first request lands.
+  it('merges real metro trains with JR mocks (cache present)', async () => {
+    const fakeReal = [
+      {
+        trainId: 'real-G-1',
+        routeId: 'G',
+        status: 'normal',
+        x: 10,
+        y: -4,
+        z: 5,
+        positionSource: 'gtfs-rt',
+        updatedAt: new Date().toISOString(),
+      },
+    ];
+    cacheStore.write('trains', fakeReal);
+    const res = await app.inject({ method: 'GET', url: '/api/realtime/trains' });
+    const body = res.json();
+    expect(body.ok).toBe(true);
+    const ids = body.data.map((t: { trainId: string }) => t.trainId);
+    // Real metro feed is passed through untouched...
+    expect(ids).toContain('real-G-1');
+    // ...and metro mocks are NOT generated alongside it...
+    expect(ids.some((id: string) => id.startsWith('G-mock'))).toBe(false);
+    // ...while JR (challenge-licensed feed, never wired) stays mocked.
+    expect(body.data.some((t: { routeId?: string }) => t.routeId === 'JY')).toBe(true);
+    cacheStore.write('trains', []); // cleanup for the mock-path test below
+  });
+
   it('returns positioned trains', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/realtime/trains' });
     const body = res.json();

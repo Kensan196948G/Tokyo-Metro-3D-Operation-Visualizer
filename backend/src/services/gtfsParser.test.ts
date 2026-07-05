@@ -38,6 +38,11 @@ describe('parseCsv', () => {
 });
 
 describe('normalizeRouteId', () => {
+  it('rejects JR East codes — challenge-licensed data must not enter the cache', () => {
+    expect(normalizeRouteId('JY')).toBeNull();
+    expect(normalizeRouteId('odpt.Railway:JR-East.Yamanote', 'JR East Yamanote Line')).toBeNull();
+  });
+
   it('maps ODPT-style identifiers to line codes', () => {
     expect(normalizeRouteId('odpt.Railway:TokyoMetro.Ginza')).toBe('G');
     expect(normalizeRouteId('TokyoMetro.Marunouchi')).toBe('M');
@@ -73,7 +78,7 @@ describe('parseStops', () => {
     const stations = parseStops(STOPS_FIXTURE, map);
     const shibuya = stations.find((s) => s.stationId === 'ginza.shibuya')!;
     expect(shibuya.routeIds).toEqual(['G']);
-    expect(shibuya.y).toBe(0); // Ginza layer height
+    expect(shibuya.y).toBe(-4); // Ginza layer height (subway = below ground)
   });
 });
 
@@ -105,7 +110,7 @@ describe('parseShapes', () => {
     expect(shapes[0].routeId).toBe('G');
     expect(shapes[0].points).toHaveLength(3);
     expect(shapes[0].points.map((p) => p.sequence)).toEqual([1, 2, 3]);
-    expect(shapes[0].points[0].y).toBe(0); // Ginza layer
+    expect(shapes[0].points[0].y).toBe(-4); // Ginza layer (subway = below ground)
   });
 });
 

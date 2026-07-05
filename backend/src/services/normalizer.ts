@@ -1,12 +1,12 @@
 import { MetroTrain, MetroAlert } from '../domain/trainModel.js';
-import { MetroStation, MOCK_STATIONS, latLonToXZ } from '../domain/stationModel.js';
-import { TOKYO_METRO_ROUTES } from '../domain/routeModel.js';
+import { MetroStation, MOCK_STATIONS, JR_MOCK_STATIONS, latLonToXZ } from '../domain/stationModel.js';
+import { ALL_ROUTES, MetroRoute, Operator } from '../domain/routeModel.js';
 import { isValidLatLon } from '../utils/geo.js';
 import { logger } from '../utils/logger.js';
 import { cacheStore } from './cacheStore.js';
 
 export type NormalizedData = {
-  routes: typeof TOKYO_METRO_ROUTES;
+  routes: MetroRoute[];
   stations: MetroStation[];
   trains: MetroTrain[];
   alerts: MetroAlert[];
@@ -24,11 +24,12 @@ const MOCK_TRAVERSE_SECONDS = 240;
  * interpolates between polls for frame-smooth movement). Ping-pong at the
  * ends simulates the return trip.
  */
-export function generateMockTrains(nowMs: number = Date.now()): MetroTrain[] {
+export function generateMockTrains(nowMs: number = Date.now(), operator?: Operator): MetroTrain[] {
   const trains: MetroTrain[] = [];
   const nowIso = new Date(nowMs).toISOString();
 
-  TOKYO_METRO_ROUTES.forEach((route, routeIndex) => {
+  const routes = operator ? ALL_ROUTES.filter((r) => r.operator === operator) : ALL_ROUTES;
+  routes.forEach((route, routeIndex) => {
     // Primary-line stations only, in station-number order = the line path.
     const routeStations = MOCK_STATIONS.filter((s) => s.routeIds[0] === route.routeId).sort(
       (a, b) => a.stationId.localeCompare(b.stationId)
@@ -88,11 +89,16 @@ export function generateMockAlerts(): MetroAlert[] {
   ];
 }
 
-/** GTFS-normalized stations from cache when available, otherwise mock data. */
+/**
+ * Stations for the API: metro comes from the GTFS cache when available
+ * (normalizeRouteId guarantees the cache is metro-only), JR is always the
+ * mock set — its realtime feed is challenge-licensed and not wired up.
+ * `source` describes the METRO portion.
+ */
 export function loadStations(): { stations: MetroStation[]; source: 'gtfs' | 'mock' } {
   const cached = cacheStore.read<MetroStation[]>('stations');
   if (cached && cached.length > 0) {
-    return { stations: cached, source: 'gtfs' };
+    return { stations: [...cached, ...JR_MOCK_STATIONS], source: 'gtfs' };
   }
   logger.warn('loadStations: cache empty, using mock stations');
   return { stations: MOCK_STATIONS, source: 'mock' };

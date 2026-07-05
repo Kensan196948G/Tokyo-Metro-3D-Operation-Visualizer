@@ -9,29 +9,30 @@ type GtfsMeta = { fetchedAt: string; stationCount: number; shapeCount: number };
 
 const RT_STALE_THRESHOLD_MS = 90_000;
 
-let trainCache: MetroTrain[] = [];
-let trainCacheTime = 0;
+// Disk-read TTL for the REAL (GTFS-RT, metro-only) train cache. Mock trains
+// are a pure function of wall-clock time and are regenerated on every poll.
+let realTrainCache: MetroTrain[] = [];
+let realTrainCacheTime = 0;
 const TRAIN_CACHE_TTL_MS = 10_000;
 
 export async function realtimeRoute(app: FastifyInstance): Promise<void> {
   app.get('/api/realtime/trains', async (_req, reply) => {
     const now = Date.now();
-    if (now - trainCacheTime > TRAIN_CACHE_TTL_MS) {
-      // Try real cache, fallback to mock
-      const cached = cacheStore.read<MetroTrain[]>('trains');
-      trainCache = cached && cached.length > 0 ? cached : generateMockTrains();
-      trainCacheTime = now;
-    } else if (trainCache.length === 0 || trainCache[0]?.positionSource === 'mock') {
-      // Mock trains are a pure function of wall-clock time and cost nothing to
-      // build — regenerate on every poll so clients always see fresh positions.
-      // (The TTL above only guards the disk read for real GTFS-RT data.)
-      trainCache = generateMockTrains();
+    if (now - realTrainCacheTime > TRAIN_CACHE_TTL_MS) {
+      realTrainCache = cacheStore.read<MetroTrain[]>('trains') ?? [];
+      realTrainCacheTime = now;
     }
+    // Metro: real feed when present, otherwise mock. JR: always mock — its
+    // ODPT realtime feed is challenge-2026-licensed and not wired up.
+    const metroTrains =
+      realTrainCache.length > 0 ? realTrainCache : generateMockTrains(now, 'TokyoMetro');
+    const jrTrains = generateMockTrains(now, 'JR-East');
+
     const rtMeta = cacheStore.read<RtMeta>('rt-meta');
     const rtAge = rtMeta?.fetchedAt ? now - Date.parse(rtMeta.fetchedAt) : Infinity;
     return reply.send({
       ok: true,
-      data: trainCache,
+      data: [...metroTrains, ...jrTrains],
       meta: {
         generatedAt: new Date().toISOString(),
         sourceUpdatedAt: rtMeta?.fetchedAt ?? undefined,

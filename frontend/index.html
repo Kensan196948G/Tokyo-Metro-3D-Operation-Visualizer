@@ -305,6 +305,53 @@
         color: var(--ink-dim);
         letter-spacing: 0.1em;
       }
+      .line-badge.wide {
+        font-size: 9.5px;
+        letter-spacing: -0.02em;
+      }
+
+      /* operator group headers (subway / surface) */
+      .line-group-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin: 16px 0 6px;
+        font-family: var(--mono);
+        font-size: 9.5px;
+        letter-spacing: 0.28em;
+        color: var(--ink-dim);
+        text-transform: uppercase;
+      }
+      .line-group-head:first-child {
+        margin-top: 0;
+      }
+      .line-group-head i {
+        font-style: normal;
+        font-family: var(--jp);
+        font-size: 10.5px;
+        letter-spacing: 0.08em;
+        text-transform: none;
+        color: var(--ink);
+        margin-left: 8px;
+      }
+      .group-toggle {
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--ink-dim);
+        font-family: var(--jp);
+        font-size: 9px;
+        padding: 3px 8px;
+        border-radius: 6px;
+        cursor: pointer;
+        letter-spacing: 0.08em;
+        flex: none;
+        transition: 0.15s;
+      }
+      .group-toggle:hover {
+        background: rgba(77, 163, 255, 0.18);
+        color: var(--ink);
+      }
 
       /* slider control */
       .ctl {
@@ -1296,7 +1343,7 @@
       <header id="header">
         <div class="brand">
           <h1>TOKYO <span>METRO</span><i>3D</i></h1>
-          <p>東京メトロ 全9路線 · 3D運行可視化</p>
+          <p>東京メトロ × JR東日本 14路線 · 3D運行可視化</p>
         </div>
         <div class="clockbox">
           <div class="api">
