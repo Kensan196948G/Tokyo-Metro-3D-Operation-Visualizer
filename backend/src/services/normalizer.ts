@@ -35,19 +35,21 @@ export function generateMockTrains(nowMs: number = Date.now(), operator?: Operat
       (a, b) => a.stationId.localeCompare(b.stationId)
     );
     if (routeStations.length < 2) return;
-    const segments = routeStations.length - 1;
+    // Circular lines (Yamanote) close the last->first segment and orbit
+    // continuously; linear lines ping-pong between their terminals.
+    const segments = route.loop ? routeStations.length : routeStations.length - 1;
 
     for (let i = 0; i < TRAINS_PER_ROUTE; i++) {
-      // Phase-offset trains along the line; ping-pong for direction.
+      // Phase-offset trains along the line.
       const phase =
         (nowMs / 1000 / MOCK_TRAVERSE_SECONDS + i / TRAINS_PER_ROUTE + routeIndex * 0.11) % 2;
-      const progress = phase <= 1 ? phase : 2 - phase; // 0..1..0
+      const progress = route.loop ? phase % 1 : phase <= 1 ? phase : 2 - phase; // orbit vs 0..1..0
       const scaled = progress * segments;
       const seg = Math.min(Math.floor(scaled), segments - 1);
       const fraction = scaled - seg;
 
       const from = routeStations[seg];
-      const to = routeStations[seg + 1];
+      const to = routeStations[(seg + 1) % routeStations.length];
       const lat = from.lat + (to.lat - from.lat) * fraction;
       const lon = from.lon + (to.lon - from.lon) * fraction;
       if (!isValidLatLon(lat, lon)) continue;
@@ -58,7 +60,7 @@ export function generateMockTrains(nowMs: number = Date.now(), operator?: Operat
       trains.push({
         trainId: `${route.routeId}-mock-${i}`,
         routeId: route.routeId,
-        directionId: phase <= 1 ? '0' : '1',
+        directionId: route.loop || phase <= 1 ? '0' : '1',
         status: delayed ? 'delay' : 'normal',
         delaySeconds: delayed ? 180 : 0,
         lat,

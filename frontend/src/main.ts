@@ -151,6 +151,11 @@ const cab = new CabModeController(
     getStation: (id) => stationById.get(id),
     getRoute: (id) => routeById.get(id),
     getTerminals: (routeId) => {
+      // Circular lines have no terminal — our JY station order runs
+      // 東京→上野→池袋→新宿→品川, i.e. counterclockwise (内回り).
+      if (routeById.get(routeId)?.loop) {
+        return { forward: '環状 内回り', back: '環状 外回り' };
+      }
       const line = stations
         .filter((s) => s.routeIds[0] === routeId)
         .sort((a, b) => a.stationId.localeCompare(b.stationId));

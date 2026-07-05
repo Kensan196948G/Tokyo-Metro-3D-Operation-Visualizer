@@ -9,6 +9,8 @@ export type MetroRoute = {
   layerHeight: number;
   visible: boolean;
   operator: Operator;
+  /** Circular line: mock trains orbit and the tube closes into a ring. */
+  loop?: boolean;
 };
 
 // Vertical convention: y=0 is ground level. Subway lines sit BELOW ground
@@ -30,7 +32,7 @@ export const TOKYO_METRO_ROUTES: MetroRoute[] = [
 // realtime GTFS-RT for JR East on ODPT is challenge-2026-licensed, so no live
 // feed is wired up. Station coordinates are real.
 export const JR_EAST_ROUTES: MetroRoute[] = [
-  { routeId: 'JY', shortName: 'JY', longName: '山手線', color: '#80C241', textColor: '#000000', layerHeight: 2, visible: true, operator: 'JR-East' },
+  { routeId: 'JY', shortName: 'JY', longName: '山手線', color: '#80C241', textColor: '#000000', layerHeight: 2, visible: true, operator: 'JR-East', loop: true },
   { routeId: 'JK', shortName: 'JK', longName: '京浜東北線', color: '#00B2E5', textColor: '#000000', layerHeight: 5, visible: true, operator: 'JR-East' },
   { routeId: 'JC', shortName: 'JC', longName: '中央線快速', color: '#F15A22', textColor: '#FFFFFF', layerHeight: 8, visible: true, operator: 'JR-East' },
   { routeId: 'JB', shortName: 'JB', longName: '総武線各駅停車', color: '#FFD400', textColor: '#000000', layerHeight: 11, visible: true, operator: 'JR-East' },

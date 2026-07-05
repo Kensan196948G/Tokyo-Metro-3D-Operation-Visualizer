@@ -7,6 +7,7 @@ export type MetroRoute = {
   textColor?: string;
   layerHeight: number;
   visible: boolean;
+  loop?: boolean;
 };
 
 export type MetroStation = {
