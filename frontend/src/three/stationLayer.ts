@@ -10,7 +10,7 @@ export class StationLayer {
     return this.group;
   }
 
-  update(stations: MetroStation[], routes: MetroRoute[]): void {
+  update(stations: MetroStation[], routes: MetroRoute[], depthScale = 1): void {
     // Remove old
     this.group.clear();
     this.meshMap.clear();
@@ -29,7 +29,8 @@ export class StationLayer {
       const geo = new THREE.SphereGeometry(0.8, 8, 8);
       const mat = new THREE.MeshPhongMaterial({ color, emissive: color, emissiveIntensity: 0.3 });
       const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(station.x, height + 0.5, station.z);
+      // Only the depth axis is exaggerated; the marker keeps a round shape.
+      mesh.position.set(station.x, height * depthScale + 0.5, station.z);
       mesh.userData = { type: 'station', station };
       this.group.add(mesh);
       this.meshMap.set(station.stationId, mesh);

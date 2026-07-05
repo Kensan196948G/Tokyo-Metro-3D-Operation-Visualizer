@@ -14,7 +14,8 @@ export class RouteLayer {
   update(
     stations: MetroStation[],
     routes: MetroRoute[],
-    shapes: MetroRouteShape[] = []
+    shapes: MetroRouteShape[] = [],
+    depthScale = 1
   ): void {
     this.group.clear();
 
@@ -23,7 +24,12 @@ export class RouteLayer {
     routes.forEach((route) => {
       if (!route.visible) return;
 
-      const points = this.resolvePoints(route, stations, shapeByRoute.get(route.routeId));
+      const points = this.resolvePoints(
+        route,
+        stations,
+        shapeByRoute.get(route.routeId),
+        depthScale
+      );
       if (points.length < 2) return;
 
       const color = new THREE.Color(ROUTE_COLORS[route.routeId] ?? '#8b949e');
@@ -56,16 +62,20 @@ export class RouteLayer {
   private resolvePoints(
     route: MetroRoute,
     stations: MetroStation[],
-    shape: MetroRouteShape | undefined
+    shape: MetroRouteShape | undefined,
+    depthScale: number
   ): THREE.Vector3[] {
+    // depthScale exaggerates only the vertical (depth) axis; horizontal layout
+    // and tube thickness stay fixed so shapes are not distorted.
+    const y = route.layerHeight * depthScale;
     if (shape && shape.points.length >= 2) {
-      return shape.points.map((p) => new THREE.Vector3(p.x, route.layerHeight, p.z));
+      return shape.points.map((p) => new THREE.Vector3(p.x, y, p.z));
     }
     // Only stations whose PRIMARY line is this route: interchange stations
     // list foreign routes in routeIds and would zigzag the path otherwise.
     return stations
       .filter((s) => s.routeIds[0] === route.routeId)
       .sort((a, b) => a.stationId.localeCompare(b.stationId))
-      .map((s) => new THREE.Vector3(s.x, route.layerHeight, s.z));
+      .map((s) => new THREE.Vector3(s.x, y, s.z));
   }
 }
