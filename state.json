@@ -6,21 +6,27 @@
     "phase_mode": "development",
     "registered_at": "2026-07-04"
   },
-  "goal": "3検討事項対応: 実車風車両(PR#20) / JR東5路線+垂直再設計(PR#22) / Cloudflare公開準備 railway.mirai-dx-platform.com (PR#24予定)。各PRはmain宛のため人間merge承認制",
-  "phase": "Verify",
-  "release_status": "release-ready",
+  "goal": "達成: Cloudflare公開完了 https://railway.mirai-dx-platform.com (Tunnel metro3d/e836dee4)。残はODPTトークン登録(人間)による実データ化のみ",
+  "phase": "Release",
+  "release_status": "deployed",
   "deploy": {
     "ready": true,
     "handbook": "docs/deployment.md",
-    "public_url_planned": "https://railway.mirai-dx-platform.com",
     "architecture": "単一Tunnel (cloudflared → localhost:3020 metro3d.service, Pages不使用)",
     "config_template": "deploy/cloudflared-config.yml.example",
     "human_prerequisites": [
-      "ODPT アカウント登録とトークン発行 (https://developer.odpt.org/)",
-      "Cloudflare ゾーン確認 (mirai-dx-platform.com) / cloudflared login / tunnel create+route dns (人間実行)",
-      "AC-006 実データ検証 (deployment.md §3 チェックリスト)"
+      "ODPT アカウント登録とトークン発行 → .env の ODPT_API_TOKEN/ODPT_GTFS_URL/ODPT_GTFS_RT_URL 設定 → systemctl --user restart metro3d (実データ化・AC-006)"
     ],
-    "lan_demo": "http://192.168.0.185:3020 (systemd metro3d.service, linger有効)"
+    "lan_demo": "http://192.168.0.185:3020 (systemd metro3d.service, linger有効)",
+    "deployed": true,
+    "deployed_at": "2026-07-05",
+    "public_url": "https://railway.mirai-dx-platform.com",
+    "tunnel": {
+      "name": "metro3d",
+      "id": "e836dee4-4156-49b4-bc01-113c696160b2",
+      "config": "~/.cloudflared/metro3d-config.yml",
+      "service": "systemctl --user status metro3d-cloudflared"
+    }
   },
   "kpi": {
     "success_rate_target": 0.9,
@@ -47,27 +53,40 @@
     2,
     3,
     4,
+    5,
     6,
     9,
     15,
     17,
     19,
-    21
+    21,
+    23
   ],
   "blocked_issues": [],
   "open_issues": [
     {
-      "number": 5,
-      "title": "Phase 4: Cloudflare デプロイ",
+      "number": 26,
+      "title": "ODPTトークン登録と実データ検証(AC-006)",
       "owner": "human",
-      "note": "具体化済み(#23)。railway.mirai-dx-platform.com 単一Tunnel。手順書/テンプレ/adminガード整備済み。Tunnel作成・DNSは人間実行"
+      "note": "現在DEMO(mock)で公開中。トークン設定のみで実データ化"
     },
     {
-      "number": 23,
-      "title": "Cloudflare公開準備",
+      "number": 27,
+      "title": "山手線の環状ループ描画",
       "owner": "cto",
-      "pr": "24予定",
-      "note": "adminガード+テンプレ+手順書改訂。PR-C としてレビュー中"
+      "note": "P3改善。loop フラグ+閉曲線化"
+    },
+    {
+      "number": 28,
+      "title": "地形マップタイル(CARTO)",
+      "owner": "cto",
+      "note": "P3・外部依存の整理要"
+    },
+    {
+      "number": 29,
+      "title": "運転席ミニマップ",
+      "owner": "cto",
+      "note": "P3改善"
     }
   ],
   "learning": {
@@ -136,7 +155,13 @@
         17,
         19,
         21
-      ]
+      ],
+      "deployed": "https://railway.mirai-dx-platform.com (2026-07-05, DEMO mode)"
     }
-  ]
+  ],
+  "maintenance": {
+    "phase_mode": "maintenance",
+    "since": "2026-07-05",
+    "note": "公開後は無期限保守フェーズ。新機能は Issue 駆動で縮退運転"
+  }
 }
