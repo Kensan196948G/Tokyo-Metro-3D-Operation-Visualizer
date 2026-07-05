@@ -34,7 +34,10 @@ export class RouteLayer {
 
       const color = new THREE.Color(ROUTE_COLORS[route.routeId] ?? '#8b949e');
 
-      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      // Circular lines (Yamanote) close back on themselves — ring, not arc.
+      const closed = route.loop === true;
+      const linePoints = closed ? [...points, points[0].clone()] : points;
+      const geometry = new THREE.BufferGeometry().setFromPoints(linePoints);
       const material = new THREE.LineBasicMaterial({
         color,
         transparent: true,
@@ -44,9 +47,9 @@ export class RouteLayer {
 
       // Tube gives the line body; segment count is capped for perf with
       // real GTFS shapes that carry hundreds of points per route.
-      const curve = new THREE.CatmullRomCurve3(points);
+      const curve = new THREE.CatmullRomCurve3(points, closed);
       const segments = Math.min(points.length * 3, MAX_TUBE_SEGMENTS);
-      const tubeGeo = new THREE.TubeGeometry(curve, segments, 0.4, 6, false);
+      const tubeGeo = new THREE.TubeGeometry(curve, segments, 0.4, 6, closed);
       const tubeMat = new THREE.MeshPhongMaterial({
         color,
         emissive: color,
