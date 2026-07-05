@@ -1032,6 +1032,23 @@
       #cab-exit:hover {
         background: rgba(255, 255, 255, 0.14);
       }
+      #cab-minimap {
+        position: absolute;
+        top: 110px;
+        right: 26px;
+        width: 180px;
+        height: 180px;
+        border-radius: 12px;
+        background: rgba(8, 11, 18, 0.66);
+        border: 1px solid rgba(120, 160, 255, 0.16);
+        backdrop-filter: blur(8px);
+        box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
+      }
+      @media (max-width: 900px) {
+        #cab-minimap {
+          display: none;
+        }
+      }
       .cab-hud {
         position: absolute;
         top: 12px;
@@ -1489,6 +1506,7 @@
             </div>
           </div>
         </div>
+        <canvas id="cab-minimap" width="360" height="360"></canvas>
         <div class="cab-console">
           <div class="cab-clockish">TIME<br /><b id="cab-clock">--:--:--</b></div>
           <div class="cab-speedo">

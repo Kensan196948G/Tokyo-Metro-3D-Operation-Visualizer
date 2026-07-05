@@ -11,6 +11,8 @@ type Lookups = {
   getRoute: (id: string) => MetroRoute | undefined;
   /** Terminal station names of a line: direction '0' heads to `forward`. */
   getTerminals: (routeId: string) => { forward: string; back: string } | undefined;
+  /** Primary stations of a line in path order (for the minimap). */
+  getLineStations: (routeId: string) => MetroStation[];
   /** Scene-unit → km conversion (derived from real station coordinates). */
   kmPerUnit: () => number;
   clockText: () => string;
@@ -58,6 +60,7 @@ export class CabModeController {
       cabKmh: HTMLElement;
       cabClock: HTMLElement;
       cabNotch: HTMLElement;
+      minimap: HTMLCanvasElement;
     },
     /** Notified on every mode change (e.g. hide 3D labels while in the cab). */
     private onModeChange?: (mode: CabModeName) => void
@@ -221,6 +224,8 @@ export class CabModeController {
       this.els.cabPfill.style.width = '0%';
     }
 
+    this.drawMinimap(train, pos);
+
     // Notch: first 2 bars = brake, rest = power (lit with speed).
     const bars = Array.from(this.els.cabNotch.children);
     const power = Math.round(Math.min(this.speedKmh / 160, 1) * (bars.length - 2));
@@ -228,5 +233,83 @@ export class CabModeController {
       if (i < 2) bar.classList.toggle('lit', train.status === 'delay');
       else bar.classList.toggle('lit', i - 2 < power);
     });
+  }
+
+  /** North-up line minimap: route shape, stations, NEXT stop, own position. */
+  private drawMinimap(train: MetroTrain, pos: THREE.Vector3): void {
+    const canvas = this.els.minimap;
+    const ctx = canvas.getContext('2d');
+    if (!ctx || !train.routeId) return;
+    const line = this.lookups.getLineStations(train.routeId);
+    if (line.length < 2) return;
+    const route = this.lookups.getRoute(train.routeId);
+    const loop = route?.loop === true;
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const PAD = 34;
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minZ = Infinity;
+    let maxZ = -Infinity;
+    for (const s of line) {
+      minX = Math.min(minX, s.x);
+      maxX = Math.max(maxX, s.x);
+      minZ = Math.min(minZ, s.z);
+      maxZ = Math.max(maxZ, s.z);
+    }
+    // Uniform scale, centered — scene +z is south, canvas +y is down: aligned.
+    const spread = Math.max(maxX - minX, maxZ - minZ, 1e-6);
+    const k = (Math.min(W, H) - PAD * 2) / spread;
+    const px = (x: number): number => (x - (minX + maxX) / 2) * k + W / 2;
+    const py = (z: number): number => (z - (minZ + maxZ) / 2) * k + H / 2;
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Route polyline (closed ring for loops)
+    ctx.beginPath();
+    line.forEach((s, i) => (i === 0 ? ctx.moveTo(px(s.x), py(s.z)) : ctx.lineTo(px(s.x), py(s.z))));
+    if (loop) ctx.closePath();
+    ctx.strokeStyle = route?.color ?? '#8a94ab';
+    ctx.lineWidth = 5;
+    ctx.lineJoin = 'round';
+    ctx.globalAlpha = 0.9;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Stations (NEXT highlighted)
+    for (const s of line) {
+      const isNext = s.stationId === train.nextStationId;
+      ctx.beginPath();
+      ctx.arc(px(s.x), py(s.z), isNext ? 7 : 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = isNext ? '#ffd166' : '#0b0e16';
+      ctx.strokeStyle = isNext ? '#ffd166' : 'rgba(230,237,247,0.7)';
+      ctx.lineWidth = 2;
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    // Own position + heading tick
+    const cx = px(pos.x);
+    const cy = py(pos.z);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + this.dir.x * 16, cy + this.dir.z * 16);
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = 'rgba(255,255,255,0.9)';
+    ctx.shadowBlur = 10;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // North marker (scene north = -z = canvas up)
+    ctx.font = '700 16px "Chakra Petch", monospace';
+    ctx.fillStyle = 'rgba(138,148,171,0.9)';
+    ctx.textAlign = 'center';
+    ctx.fillText('N', W / 2, 22);
   }
 }
