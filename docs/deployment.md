@@ -116,6 +116,25 @@ journalctl --user -u metro3d -n 20    # ポーリングが 15 秒間隔で succe
 | Tunnel 断 | `sudo systemctl restart cloudflared` |
 | 公開停止 | `sudo systemctl stop cloudflared`（LAN 提供は継続） |
 
+## 🔒 アクセス制御（Cloudflare Access・メール認証）
+
+公開URLを特定メールアドレスに限定する（Zero Trust・One-time PIN 認証）。
+再利用ポリシーは作成済み: `MIRAI-DX` (1f24a1d9-…) / `Allow mirai-const domain + kensan1969` (b898b177-…)
+— いずれも「Emails ending in mirai-const.co.jp」+「kensan1969@gmail.com」の Allow。
+
+**アプリ適用手順（人間・ダッシュボード）:**
+1. https://one.dash.cloudflare.com → Access → Applications → **Add an application → Self-hosted**
+2. Application name: `Tokyo Metro 3D` / Session Duration: 24h
+3. Public hostname: subdomain `railway` / domain `mirai-dx-platform.com`（パス空欄=全体保護）
+4. Policies → **Select existing policies** → 上記どちらかを選択 → Save
+
+**検証:**
+```bash
+curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" https://railway.mirai-dx-platform.com/
+# → 302 https://<team>.cloudflareaccess.com/... なら保護有効
+```
+ブラウザではメール入力 → 届いた PIN 入力でアクセス（許可メールのみ通過）。
+
 ## 🔐 セキュリティチェックリスト
 
 - [ ] `.env` の権限 0640 以下・git 追跡外

@@ -5,6 +5,7 @@ import { RouteLayer } from './three/routeLayer.js';
 import { TrainLayer } from './three/trainLayer.js';
 import { StationLabelLayer, type LabelMode } from './three/stationLabelLayer.js';
 import { PillarLayer } from './three/pillarLayer.js';
+import { MapLayer } from './three/mapLayer.js';
 import { CabModeController } from './ui/cabMode.js';
 import { TourController } from './ui/tour.js';
 import { FactsRotator } from './ui/facts.js';
@@ -51,7 +52,9 @@ const routeLayer = new RouteLayer();
 const trainLayer = new TrainLayer();
 const labelLayer = new StationLabelLayer();
 const pillarLayer = new PillarLayer();
+const mapLayer = new MapLayer();
 
+metro.scene.add(mapLayer.getGroup());
 metro.scene.add(routeLayer.getGroup());
 metro.scene.add(pillarLayer.getGroup());
 metro.scene.add(stationLayer.getGroup());
@@ -538,6 +541,15 @@ function wireControls(): void {
     });
   });
 
+  // Ground basemap (CARTO): visibility + opacity
+  bindToggle('toggle-map', (on) => mapLayer.setVisible(on));
+  const mapOp = byId<HTMLInputElement>('map-op');
+  const mapOpVal = byId('map-op-val');
+  mapOp.addEventListener('input', () => {
+    mapOpVal.textContent = `${mapOp.value}%`;
+    mapLayer.setOpacity(Number(mapOp.value) / 100);
+  });
+
   // Display toggles
   bindToggle('toggle-grid', (on) => metro.setGridVisible(on));
   bindToggle('toggle-trains', (on) => {
@@ -654,6 +666,8 @@ async function init(): Promise<void> {
   rebuildLayers();
   labelLayer.setMode(labelMode);
   metro.fitToPoints(stations); // frame the whole network on first load
+  // Basemap builds in the background — tiles arrive after first paint.
+  void mapLayer.build(stations, 0.45);
 
   updateLineList();
   updateAlertList();
