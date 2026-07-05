@@ -163,6 +163,10 @@ const cab = new CabModeController(
       // Mock direction '0' progresses from first → last sorted station.
       return { forward: line[line.length - 1].name, back: line[0].name };
     },
+    getLineStations: (routeId) =>
+      stations
+        .filter((s) => s.routeIds[0] === routeId)
+        .sort((a, b) => a.stationId.localeCompare(b.stationId)),
     kmPerUnit: () => kmPerUnit,
     clockText: tokyoClockText,
   },
@@ -181,6 +185,7 @@ const cab = new CabModeController(
     cabKmh: byId('cab-kmh'),
     cabClock: byId('cab-clock'),
     cabNotch: byId('cab-notch'),
+    minimap: byId<HTMLCanvasElement>('cab-minimap'),
   },
   (mode) => {
     // Billboard labels render through geometry (depthTest:false) and turn
