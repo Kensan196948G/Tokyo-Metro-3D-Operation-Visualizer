@@ -65,10 +65,28 @@
   "blocked_issues": [],
   "open_issues": [
     {
-      "number": 25,
+      "number": 26,
       "title": "ODPTトークン登録と実データ検証(AC-006)",
       "owner": "human",
       "note": "現在DEMO(mock)で公開中。トークン設定のみで実データ化"
+    },
+    {
+      "number": 27,
+      "title": "山手線の環状ループ描画",
+      "owner": "cto",
+      "note": "P3改善。loop フラグ+閉曲線化"
+    },
+    {
+      "number": 28,
+      "title": "地形マップタイル(CARTO)",
+      "owner": "cto",
+      "note": "P3・外部依存の整理要"
+    },
+    {
+      "number": 29,
+      "title": "運転席ミニマップ",
+      "owner": "cto",
+      "note": "P3改善"
     }
   ],
   "learning": {
