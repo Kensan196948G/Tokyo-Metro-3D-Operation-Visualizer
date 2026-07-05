@@ -209,14 +209,18 @@ const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 const popup = byId('info-popup');
 
-function pickAt(clientX: number, clientY: number): THREE.Mesh | null {
+function pickAt(clientX: number, clientY: number): THREE.Object3D | null {
   const rect = metro.renderer.domElement.getBoundingClientRect();
   mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
   mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(mouse, metro.camera);
-  const interactables = [...stationLayer.getMeshes(), ...trainLayer.getMeshes()];
-  const hits = raycaster.intersectObjects(interactables);
-  return hits.length > 0 ? (hits[0].object as THREE.Mesh) : null;
+  const interactables: THREE.Object3D[] = [...stationLayer.getMeshes(), ...trainLayer.getMeshes()];
+  // Trains are Groups — recurse into children, then bubble up to the object
+  // that carries userData (children share the group's userData reference).
+  const hits = raycaster.intersectObjects(interactables, true);
+  let obj: THREE.Object3D | null = hits.length > 0 ? hits[0].object : null;
+  while (obj && obj.userData['type'] === undefined) obj = obj.parent;
+  return obj;
 }
 
 metro.renderer.domElement.addEventListener('mousemove', (e) => {
