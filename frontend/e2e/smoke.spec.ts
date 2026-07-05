@@ -32,8 +32,36 @@ test('3D visualizer boots and shows live data', async ({ page }) => {
   await firstRow.click();
   await expect(firstRow).not.toHaveClass(/off/);
 
+  // Station search: typing shows incremental results with line badges
+  await page.locator('#search').fill('銀座');
+  await expect(page.locator('#search-res .sr-item').first()).toBeVisible();
+  await page.locator('#search').fill('');
+
+  // Camera preset buttons fly without errors
+  await page.locator('.viewbtns button[data-view="top"]').click();
+  await page.locator('.viewbtns button[data-view="bird"]').click();
+
   // Visual artifact for humans (uploaded from CI)
   await page.screenshot({ path: 'e2e-scene.png' });
+});
+
+test('driver cab mode enters and exits', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('#train-count')).toHaveText(/^[1-9]\d*$/);
+
+  // Whole-network driver button → cab overlay on, HUD populated
+  await page.locator('#drive-btn').click();
+  await expect(page.locator('#cab')).toHaveClass(/on/);
+  await expect(page.locator('#cab-line')).not.toHaveText('—');
+  await expect(page.locator('#cab-kmh')).toHaveText(/^\d+$/);
+
+  // Cab view artifact for humans
+  await page.waitForTimeout(1200);
+  await page.screenshot({ path: 'e2e-cab.png' });
+
+  // ESC returns to the model view
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#cab')).not.toHaveClass(/on/);
 });
 
 test('stations API is consistent with the scene', async ({ request }) => {
