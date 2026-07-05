@@ -8,14 +8,20 @@ export class MetroScene {
   public renderer: THREE.WebGLRenderer;
   public controls: OrbitControls;
 
+  private grid: THREE.GridHelper;
+  private paused = false;
+
   constructor(container: HTMLElement) {
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x0d1117);
-    this.scene.fog = new THREE.Fog(0x0d1117, 400, 800);
+    // Near-black navy to match the reference "underground void" backdrop.
+    this.scene.background = new THREE.Color(0x05070d);
+    this.scene.fog = new THREE.Fog(0x05070d, 420, 900);
 
-    // Grid
-    const grid = new THREE.GridHelper(600, 60, 0x1c2128, 0x1c2128);
-    this.scene.add(grid);
+    // Terrain grid — dim so the glowing lines read as the focal layer.
+    this.grid = new THREE.GridHelper(600, 60, 0x16213b, 0x0f1626);
+    (this.grid.material as THREE.Material).transparent = true;
+    (this.grid.material as THREE.Material).opacity = 0.6;
+    this.scene.add(this.grid);
 
     // Camera
     const aspect = container.clientWidth / container.clientHeight;
@@ -67,9 +73,27 @@ export class MetroScene {
   private animate(): void {
     requestAnimationFrame(() => this.animate());
     const now = performance.now();
-    for (const cb of this.frameCallbacks) cb(now);
+    // When paused, freeze motion (skip interpolation callbacks) but keep
+    // rendering so orbit/zoom stays responsive.
+    if (!this.paused) {
+      for (const cb of this.frameCallbacks) cb(now);
+    }
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /** Freeze/resume per-frame animation (train interpolation, delay pulse). */
+  setPaused(paused: boolean): void {
+    this.paused = paused;
+  }
+
+  isPaused(): boolean {
+    return this.paused;
+  }
+
+  /** Show/hide the terrain reference grid. */
+  setGridVisible(visible: boolean): void {
+    this.grid.visible = visible;
   }
 
   resetCamera(): void {

@@ -18,13 +18,19 @@ const TRANSITION_MS = UPDATE_INTERVAL_MS;
 export class TrainLayer {
   private group = new THREE.Group();
   private entries = new Map<string, TrainEntry>();
+  private pulseEnabled = true;
 
   getGroup(): THREE.Group {
     return this.group;
   }
 
+  /** Toggle the pulsing scale animation on delayed trains. */
+  setPulseEnabled(enabled: boolean): void {
+    this.pulseEnabled = enabled;
+  }
+
   /** Applies a new server snapshot. Meshes glide to new targets via tick(). */
-  update(trains: MetroTrain[], routes: MetroRoute[]): void {
+  update(trains: MetroTrain[], routes: MetroRoute[], depthScale = 1): void {
     const routeVisibilityMap = new Map(routes.map((r) => [r.routeId, r.visible]));
     const now = performance.now();
     const currentIds = new Set<string>();
@@ -35,7 +41,9 @@ export class TrainLayer {
 
       const statusColor = STATUS_COLORS[train.status] ?? STATUS_COLORS.unknown;
       const routeColor = train.routeId ? (ROUTE_COLORS[train.routeId] ?? '#ffffff') : '#ffffff';
-      const target = new THREE.Vector3(train.x, train.y + 1.5, train.z);
+      // Depth exaggeration matches the route/station layers; the +1.5 lift keeps
+      // the car body just above its track and is intentionally not scaled.
+      const target = new THREE.Vector3(train.x, train.y * depthScale + 1.5, train.z);
 
       let entry = this.entries.get(train.trainId);
       if (!entry) {
@@ -86,7 +94,7 @@ export class TrainLayer {
       }
 
       // Delay pulse
-      if (entry.train.status === 'delay') {
+      if (this.pulseEnabled && entry.train.status === 'delay') {
         const scale = 1 + Math.sin(nowMs / 400) * 0.1;
         entry.mesh.scale.setScalar(scale);
       } else {

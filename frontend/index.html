@@ -3,88 +3,818 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>東京メトロ 3D運行可視化</title>
+    <title>TOKYO METRO 3D — 東京メトロ 3D運行可視化</title>
+    <meta
+      name="description"
+      content="東京メトロ全9路線・174駅を実座標と深度で立体再現するインタラクティブ3D運行可視化(非公式PoC)"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Reference design uses these 3 families; system fonts are the offline fallback -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;600;700&family=Shippori+Mincho+B1:wght@700;800&family=Zen+Kaku+Gothic+New:wght@300;400;500;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      body { background: #0d1117; color: #e6edf3; font-family: 'Hiragino Sans', 'Meiryo', sans-serif; overflow: hidden; }
-      #app { width: 100vw; height: 100vh; position: relative; }
-      #canvas-container { position: absolute; inset: 0; }
-      #header {
-        position: absolute; top: 0; left: 0; right: 0; z-index: 10;
-        display: flex; align-items: center; justify-content: space-between;
-        background: rgba(13,17,23,0.85); padding: 8px 16px; backdrop-filter: blur(4px);
-        border-bottom: 1px solid rgba(255,255,255,0.1);
+      :root {
+        --bg: #05070d;
+        --bg2: #080c16;
+        --panel: rgba(10, 14, 24, 0.82);
+        --panel-border: rgba(120, 160, 255, 0.14);
+        --ink: #e8edf7;
+        --ink-dim: #8a94ab;
+        --accent: #4da3ff;
+        --gold: #ffd166;
+        --ok: #3fb950;
+        --warn: #d29922;
+        --err: #f85149;
+        --mono: 'Chakra Petch', 'DejaVu Sans Mono', ui-monospace, monospace;
+        --jp: 'Zen Kaku Gothic New', 'Hiragino Sans', 'Meiryo', sans-serif;
+        --serif: 'Shippori Mincho B1', 'Hiragino Mincho ProN', serif;
       }
-      #header h1 { font-size: 14px; font-weight: 600; color: #58a6ff; }
-      #header-status { display: flex; gap: 16px; font-size: 12px; color: #8b949e; }
-      #left-panel {
-        position: absolute; top: 48px; left: 0; bottom: 0; z-index: 10;
-        width: 200px; background: rgba(13,17,23,0.85); padding: 12px;
-        border-right: 1px solid rgba(255,255,255,0.1); overflow-y: auto;
-        backdrop-filter: blur(4px);
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
       }
-      #left-panel h2 { font-size: 12px; color: #8b949e; margin-bottom: 8px; text-transform: uppercase; }
-      .route-item { display: flex; align-items: center; gap: 8px; margin: 4px 0; cursor: pointer; padding: 4px; border-radius: 4px; }
-      .route-item:hover { background: rgba(255,255,255,0.05); }
-      .route-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-      .route-name { font-size: 12px; }
-      .route-check { margin-left: auto; width: 14px; height: 14px; }
-      #right-panel {
-        position: absolute; top: 48px; right: 0; z-index: 10;
-        width: 240px; background: rgba(13,17,23,0.85); padding: 12px;
-        border-left: 1px solid rgba(255,255,255,0.1); max-height: calc(100vh - 48px);
-        overflow-y: auto; backdrop-filter: blur(4px);
+      html,
+      body {
+        height: 100%;
       }
-      #right-panel h2 { font-size: 12px; color: #8b949e; margin-bottom: 8px; text-transform: uppercase; }
-      .alert-item { padding: 6px 8px; margin: 4px 0; border-radius: 4px; font-size: 12px; }
-      .alert-info { background: rgba(56,139,253,0.15); border-left: 3px solid #388bfd; }
-      .alert-warning { background: rgba(210,153,34,0.15); border-left: 3px solid #d29922; }
-      .alert-critical { background: rgba(248,81,73,0.15); border-left: 3px solid #f85149; }
-      #footer {
-        position: absolute; bottom: 0; left: 200px; right: 240px; z-index: 10;
-        background: rgba(13,17,23,0.85); padding: 6px 12px; font-size: 10px;
-        color: #8b949e; border-top: 1px solid rgba(255,255,255,0.1);
-        display: flex; gap: 16px; align-items: center; backdrop-filter: blur(4px);
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--jp);
+        overflow: hidden;
+        -webkit-font-smoothing: antialiased;
       }
-      #info-popup {
-        position: absolute; z-index: 20; background: rgba(22,27,34,0.95);
-        border: 1px solid rgba(255,255,255,0.15); border-radius: 8px;
-        padding: 12px; font-size: 12px; max-width: 200px; display: none;
+      ::selection {
+        background: rgba(77, 163, 255, 0.4);
+      }
+      #app {
+        position: fixed;
+        inset: 0;
+      }
+      #canvas-container {
+        position: absolute;
+        inset: 0;
+      }
+      canvas {
+        display: block;
+      }
+
+      /* ---------- loading ---------- */
+      #loader {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        background: var(--bg);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 22px;
+        transition: opacity 0.8s ease;
+      }
+      #loader.done {
+        opacity: 0;
         pointer-events: none;
       }
-      #info-popup h3 { font-size: 13px; color: #e6edf3; margin-bottom: 4px; }
-      #info-popup p { color: #8b949e; margin: 2px 0; }
-      .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
-      .status-ok { background: #3fb950; }
-      .status-warn { background: #d29922; }
-      .status-err { background: #f85149; }
-      .train-item { padding: 4px 0; font-size: 11px; color: #8b949e; border-bottom: 1px solid rgba(255,255,255,0.05); }
+      .loader-mark {
+        font-family: var(--mono);
+        font-weight: 700;
+        font-size: 13px;
+        letter-spacing: 0.55em;
+        color: var(--ink-dim);
+      }
+      .loader-mark span {
+        color: var(--accent);
+      }
+      .loader-rail {
+        width: 220px;
+        height: 2px;
+        background: rgba(255, 255, 255, 0.08);
+        overflow: hidden;
+        border-radius: 2px;
+      }
+      .loader-rail i {
+        display: block;
+        height: 100%;
+        width: 40%;
+        background: linear-gradient(90deg, transparent, var(--accent), transparent);
+        animation: rail 1.1s linear infinite;
+      }
+      @keyframes rail {
+        from {
+          transform: translateX(-100%);
+        }
+        to {
+          transform: translateX(320%);
+        }
+      }
+
+      /* ---------- header ---------- */
+      #header {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 20;
+        pointer-events: none;
+        padding: 24px 32px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+      }
+      .brand h1 {
+        font-family: var(--mono);
+        font-weight: 700;
+        font-size: clamp(20px, 2.6vw, 30px);
+        letter-spacing: 0.28em;
+        line-height: 1;
+        color: var(--ink);
+        text-shadow: 0 0 24px rgba(77, 163, 255, 0.35);
+      }
+      .brand h1 span {
+        color: var(--accent);
+      }
+      .brand h1 i {
+        font-style: normal;
+        font-size: 0.5em;
+        letter-spacing: 0.2em;
+        color: var(--ink-dim);
+        vertical-align: 0.35em;
+        margin-left: 0.3em;
+      }
+      .brand p {
+        margin-top: 9px;
+        font-size: 11.5px;
+        letter-spacing: 0.32em;
+        color: var(--ink-dim);
+        font-weight: 500;
+      }
+      .clockbox {
+        text-align: right;
+        font-family: var(--mono);
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+      .clockbox .hud {
+        font-size: 11px;
+        letter-spacing: 0.18em;
+        color: var(--ink-dim);
+      }
+      .clockbox .hud b {
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .clockbox .api {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        justify-content: flex-end;
+        font-size: 10.5px;
+        letter-spacing: 0.22em;
+      }
+      .status-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        display: inline-block;
+        box-shadow: 0 0 8px currentColor;
+      }
+      .status-ok {
+        background: var(--ok);
+        color: var(--ok);
+      }
+      .status-warn {
+        background: var(--warn);
+        color: var(--warn);
+      }
+      .status-err {
+        background: var(--err);
+        color: var(--err);
+      }
+
+      /* ---------- control panel ---------- */
+      #panel {
+        position: fixed;
+        left: 26px;
+        top: 108px;
+        bottom: 108px;
+        width: 268px;
+        z-index: 20;
+        display: flex;
+        flex-direction: column;
+        background: var(--panel);
+        border: 1px solid var(--panel-border);
+        border-radius: 14px;
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        overflow: hidden;
+        transition: transform 0.45s cubic-bezier(0.6, 0.05, 0.2, 1),
+          opacity 0.45s ease;
+      }
+      #panel.hidden {
+        transform: translateX(-320px);
+        opacity: 0;
+        pointer-events: none;
+      }
+      #panel .scroll {
+        overflow-y: auto;
+        padding: 18px 18px 14px;
+        flex: 1;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+      }
+      #panel .scroll::-webkit-scrollbar {
+        width: 6px;
+      }
+      #panel .scroll::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 3px;
+      }
+      .sec-label {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.3em;
+        color: var(--ink-dim);
+        text-transform: uppercase;
+        margin: 20px 0 11px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .sec-label:first-child {
+        margin-top: 0;
+      }
+      .sec-label .jp {
+        letter-spacing: 0.12em;
+        text-transform: none;
+      }
+      .sec-label::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: linear-gradient(90deg, rgba(255, 255, 255, 0.12), transparent);
+      }
+
+      /* line rows */
+      .line-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 8px;
+        margin: 0 -8px;
+        border-radius: 8px;
+        cursor: pointer;
+        user-select: none;
+        transition: background 0.15s, opacity 0.2s;
+      }
+      .line-row:hover {
+        background: rgba(255, 255, 255, 0.05);
+      }
+      .line-row.off {
+        opacity: 0.32;
+      }
+      .line-badge {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        flex: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--mono);
+        font-weight: 700;
+        font-size: 12px;
+        color: #fff;
+        border: 2.5px solid currentColor;
+        background: #0b0e16;
+      }
+      .line-name {
+        font-size: 13px;
+        font-weight: 500;
+        flex: 1;
+      }
+      .line-count {
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--ink-dim);
+        letter-spacing: 0.1em;
+      }
+
+      /* slider control */
+      .ctl {
+        margin-bottom: 6px;
+      }
+      .ctl label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11.5px;
+        color: var(--ink-dim);
+        margin-bottom: 8px;
+        letter-spacing: 0.08em;
+      }
+      .ctl label output {
+        font-family: var(--mono);
+        color: var(--accent);
+        font-weight: 600;
+      }
+      input[type='range'] {
+        width: 100%;
+        -webkit-appearance: none;
+        appearance: none;
+        height: 3px;
+        border-radius: 3px;
+        background: rgba(255, 255, 255, 0.12);
+        outline: none;
+        cursor: pointer;
+      }
+      input[type='range']::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 12px rgba(77, 163, 255, 0.8);
+        border: 2px solid #0b1220;
+        cursor: pointer;
+      }
+      input[type='range']::-moz-range-thumb {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 12px rgba(77, 163, 255, 0.8);
+        border: 2px solid #0b1220;
+        cursor: pointer;
+      }
+
+      /* segmented control */
+      .seg {
+        display: flex;
+        background: rgba(255, 255, 255, 0.06);
+        border-radius: 8px;
+        padding: 3px;
+        gap: 3px;
+      }
+      .seg button {
+        flex: 1;
+        border: 0;
+        background: transparent;
+        color: var(--ink-dim);
+        font-family: var(--jp);
+        font-size: 11px;
+        padding: 6px 0;
+        border-radius: 6px;
+        cursor: pointer;
+        letter-spacing: 0.06em;
+        transition: 0.15s;
+      }
+      .seg button.on {
+        background: rgba(77, 163, 255, 0.22);
+        color: var(--ink);
+      }
+
+      /* toggle rows */
+      .toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 7px 0;
+        font-size: 12.5px;
+        cursor: pointer;
+        user-select: none;
+      }
+      .toggle-row .sw {
+        width: 34px;
+        height: 19px;
+        border-radius: 19px;
+        background: rgba(255, 255, 255, 0.12);
+        position: relative;
+        transition: 0.2s;
+        flex: none;
+      }
+      .toggle-row .sw::after {
+        content: '';
+        position: absolute;
+        top: 2.5px;
+        left: 3px;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: #aab3c7;
+        transition: 0.2s;
+      }
+      .toggle-row.on .sw {
+        background: rgba(77, 163, 255, 0.55);
+      }
+      .toggle-row.on .sw::after {
+        left: 17px;
+        background: #fff;
+      }
+
+      /* view buttons */
+      .viewbtns {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 7px;
+      }
+      .viewbtns button {
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--ink);
+        font-family: var(--jp);
+        font-size: 11.5px;
+        padding: 9px 0;
+        border-radius: 8px;
+        cursor: pointer;
+        letter-spacing: 0.1em;
+        transition: 0.15s;
+      }
+      .viewbtns button:hover {
+        background: rgba(77, 163, 255, 0.18);
+        border-color: rgba(77, 163, 255, 0.4);
+      }
+
+      /* alerts */
+      #alert-list:empty::after {
+        content: '運行情報なし';
+        font-size: 11px;
+        color: var(--ink-dim);
+        letter-spacing: 0.05em;
+      }
+      .alert-item {
+        padding: 8px 10px;
+        margin: 6px 0;
+        border-radius: 8px;
+        font-size: 11.5px;
+        line-height: 1.5;
+        background: rgba(255, 255, 255, 0.04);
+        border-left: 3px solid var(--ink-dim);
+      }
+      .alert-item strong {
+        font-weight: 600;
+      }
+      .alert-info {
+        border-left-color: var(--accent);
+        background: rgba(77, 163, 255, 0.1);
+      }
+      .alert-warning {
+        border-left-color: var(--warn);
+        background: rgba(210, 153, 34, 0.1);
+      }
+      .alert-critical {
+        border-left-color: var(--err);
+        background: rgba(248, 81, 73, 0.12);
+      }
+
+      #panel footer {
+        padding: 12px 18px;
+        border-top: 1px solid rgba(255, 255, 255, 0.07);
+        font-size: 9.5px;
+        line-height: 1.7;
+        color: var(--ink-dim);
+        letter-spacing: 0.03em;
+      }
+
+      /* panel collapse tab (always-visible toggle) */
+      #panel-tab {
+        position: fixed;
+        left: 26px;
+        top: 74px;
+        z-index: 21;
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.25em;
+        padding: 8px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        user-select: none;
+        background: var(--panel);
+        border: 1px solid var(--panel-border);
+        color: var(--ink-dim);
+        backdrop-filter: blur(18px);
+        pointer-events: auto;
+        transition: color 0.2s, border-color 0.2s;
+      }
+      #panel-tab:hover {
+        color: var(--ink);
+        border-color: rgba(77, 163, 255, 0.4);
+      }
+
+      /* ---------- time / live status bar ---------- */
+      #timebar {
+        position: fixed;
+        left: 50%;
+        bottom: 22px;
+        transform: translateX(-50%);
+        z-index: 22;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        padding: 12px 20px;
+        background: var(--panel);
+        border: 1px solid var(--panel-border);
+        border-radius: 14px;
+        backdrop-filter: blur(18px);
+        -webkit-backdrop-filter: blur(18px);
+        box-shadow: 0 16px 50px rgba(0, 0, 0, 0.55);
+        max-width: calc(100vw - 40px);
+      }
+      #playbtn {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        flex: none;
+        background: rgba(77, 163, 255, 0.16);
+        color: var(--ink);
+        cursor: pointer;
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: 0.15s;
+      }
+      #playbtn:hover {
+        background: rgba(77, 163, 255, 0.3);
+      }
+      .clock-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-width: 104px;
+      }
+      #sim-clock {
+        font-family: var(--mono);
+        font-weight: 700;
+        font-size: 26px;
+        letter-spacing: 0.08em;
+        line-height: 1;
+        color: var(--ink);
+        text-shadow: 0 0 18px rgba(77, 163, 255, 0.5);
+        font-variant-numeric: tabular-nums;
+      }
+      #sim-phase {
+        font-size: 9.5px;
+        letter-spacing: 0.3em;
+        color: var(--accent);
+        margin-top: 5px;
+        font-weight: 500;
+      }
+      .timeslider-wrap {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        width: min(320px, 34vw);
+      }
+      .dayprog {
+        position: relative;
+        height: 4px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .dayprog .fill {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        border-radius: 4px;
+        background: linear-gradient(90deg, rgba(77, 163, 255, 0.5), var(--accent));
+        transition: width 0.6s linear;
+      }
+      .dayprog .knob {
+        position: absolute;
+        top: 50%;
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 12px rgba(77, 163, 255, 0.9);
+        transform: translate(-50%, -50%);
+        transition: left 0.6s linear;
+      }
+      .ts-marks {
+        display: flex;
+        justify-content: space-between;
+        font-family: var(--mono);
+        font-size: 8.5px;
+        color: var(--ink-dim);
+        letter-spacing: 0.1em;
+      }
+      .datasrc {
+        font-family: var(--mono);
+        font-size: 9.5px;
+        letter-spacing: 0.16em;
+        padding: 5px 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        color: var(--ink-dim);
+        white-space: nowrap;
+      }
+      .datasrc.live {
+        color: var(--ok);
+        border-color: rgba(63, 185, 80, 0.4);
+        background: rgba(63, 185, 80, 0.08);
+      }
+      .datasrc.mock {
+        color: var(--gold);
+        border-color: rgba(255, 209, 102, 0.4);
+        background: rgba(255, 209, 102, 0.08);
+      }
+      .trainstat {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-width: 70px;
+      }
+      #train-count {
+        font-family: var(--mono);
+        font-weight: 700;
+        font-size: 22px;
+        color: var(--gold);
+        line-height: 1;
+        text-shadow: 0 0 16px rgba(255, 209, 102, 0.45);
+        font-variant-numeric: tabular-nums;
+      }
+      .trainstat span {
+        font-size: 9px;
+        letter-spacing: 0.28em;
+        color: var(--ink-dim);
+        margin-top: 5px;
+      }
+
+      /* ---------- hover popup ---------- */
+      #info-popup {
+        position: fixed;
+        z-index: 30;
+        background: rgba(10, 14, 24, 0.95);
+        border: 1px solid var(--panel-border);
+        border-radius: 10px;
+        padding: 11px 13px;
+        font-size: 12px;
+        max-width: 230px;
+        display: none;
+        pointer-events: none;
+        backdrop-filter: blur(14px);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+      }
+      #info-popup h3 {
+        font-size: 13px;
+        color: var(--ink);
+        margin-bottom: 5px;
+        letter-spacing: 0.03em;
+      }
+      #info-popup p {
+        color: var(--ink-dim);
+        margin: 2px 0;
+        font-size: 11px;
+      }
+      #info-popup .en {
+        font-family: var(--mono);
+        font-size: 9.5px;
+        letter-spacing: 0.14em;
+        color: var(--accent);
+      }
+
+      /* entrance animation */
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(18px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      .rise {
+        animation: rise 0.7s cubic-bezier(0.2, 0.6, 0.2, 1) both;
+      }
+      #header.rise {
+        animation-delay: 0.15s;
+      }
+      #timebar.rise {
+        animation-delay: 0.35s;
+      }
+
+      @media (max-width: 720px) {
+        #panel {
+          top: 96px;
+          bottom: 150px;
+          width: 240px;
+        }
+        #timebar {
+          gap: 12px;
+          padding: 10px 14px;
+        }
+        .timeslider-wrap {
+          display: none;
+        }
+      }
     </style>
   </head>
   <body>
     <div id="app">
       <div id="canvas-container"></div>
-      <div id="header">
-        <h1>🚇 東京メトロ 3D運行可視化</h1>
-        <div id="header-status">
-          <span><span class="status-dot status-ok"></span>API: <span id="api-status">接続中...</span></span>
-          <span>最終更新: <span id="last-update">-</span></span>
+
+      <!-- loading -->
+      <div id="loader">
+        <div class="loader-mark">TOKYO <span>METRO</span> 3D</div>
+        <div class="loader-rail"><i></i></div>
+      </div>
+
+      <!-- header -->
+      <header id="header">
+        <div class="brand">
+          <h1>TOKYO <span>METRO</span><i>3D</i></h1>
+          <p>東京メトロ 全9路線 · 3D運行可視化</p>
+        </div>
+        <div class="clockbox">
+          <div class="api">
+            <span id="api-dot" class="status-dot status-warn"></span>
+            API <span id="api-status">接続中…</span>
+          </div>
+          <div class="hud">路線 <b id="stat-lines">–</b> · 駅 <b id="stat-stations">–</b></div>
+          <div class="hud">更新 <b id="last-update">--:--:--</b></div>
+        </div>
+      </header>
+
+      <!-- control panel -->
+      <aside id="panel">
+        <div class="scroll">
+          <div class="sec-label">Lines<span class="jp">路線</span></div>
+          <div id="line-list"></div>
+
+          <div class="sec-label">Depth<span class="jp">深さ表現</span></div>
+          <div class="ctl">
+            <label>深さの強調倍率 <output id="depth-val">×1.0</output></label>
+            <input id="depth-range" type="range" min="1" max="20" step="0.5" value="1" />
+          </div>
+
+          <div class="sec-label">Labels<span class="jp">駅名表示</span></div>
+          <div class="seg" id="label-seg">
+            <button data-labels="none">なし</button>
+            <button data-labels="major" class="on">主要駅</button>
+            <button data-labels="all">全駅</button>
+          </div>
+
+          <div class="sec-label">Display<span class="jp">表示</span></div>
+          <div class="toggle-row on" id="toggle-grid">
+            地形グリッド<span class="sw"></span>
+          </div>
+          <div class="toggle-row on" id="toggle-trains">
+            列車を表示<span class="sw"></span>
+          </div>
+          <div class="toggle-row on" id="toggle-pulse">
+            遅延パルス<span class="sw"></span>
+          </div>
+
+          <div class="sec-label">Alerts<span class="jp">運行情報</span></div>
+          <div id="alert-list"></div>
+
+          <div class="sec-label">View<span class="jp">視点</span></div>
+          <div class="viewbtns">
+            <button id="view-fit">全体表示</button>
+            <button id="view-reset">リセット</button>
+          </div>
+        </div>
+        <footer>
+          出典: 公共交通オープンデータ(ODPT) / 東京地下鉄株式会社<br />
+          地図: © OpenStreetMap contributors / © CARTO<br />
+          ⚠️ 非公式の可視化PoC。運行情報の正確性は保証しません。
+        </footer>
+      </aside>
+      <div id="panel-tab">◂ PANEL</div>
+
+      <!-- time / live status bar -->
+      <div id="timebar">
+        <button id="playbtn" title="一時停止 / 再開">❚❚</button>
+        <div class="clock-wrap">
+          <div id="sim-clock">--:--</div>
+          <div id="sim-phase">LIVE</div>
+        </div>
+        <div class="timeslider-wrap">
+          <div class="dayprog">
+            <div class="fill" id="day-fill"></div>
+            <div class="knob" id="day-knob"></div>
+          </div>
+          <div class="ts-marks">
+            <span>0:00</span><span>6:00</span><span>12:00</span><span>18:00</span><span>24:00</span>
+          </div>
+        </div>
+        <div class="datasrc" id="data-src">SOURCE –</div>
+        <div class="trainstat">
+          <div id="train-count">0</div>
+          <span>運行中</span>
         </div>
       </div>
-      <div id="left-panel">
-        <h2>路線</h2>
-        <div id="route-list"></div>
-      </div>
-      <div id="right-panel">
-        <h2>運行情報</h2>
-        <div id="alert-list"></div>
-        <h2 style="margin-top:12px;">列車</h2>
-        <div id="train-list"></div>
-      </div>
-      <div id="footer">
-        <span>出典: 公共交通オープンデータ(ODPT) / 東京地下鉄株式会社</span>
-        <span>⚠️ 本アプリは非公式の可視化PoCです。運行情報の正確性を保証しません。</span>
-      </div>
+
+      <!-- hover popup -->
       <div id="info-popup"></div>
     </div>
     <script type="module" src="/src/main.ts"></script>
