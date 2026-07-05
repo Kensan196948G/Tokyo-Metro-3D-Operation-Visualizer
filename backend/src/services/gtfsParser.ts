@@ -6,7 +6,7 @@
  */
 import { parseCsv } from '../utils/csv.js';
 import { latLonToXZ, isValidLatLon } from '../utils/geo.js';
-import { TOKYO_METRO_ROUTES } from '../domain/routeModel.js';
+import { ALL_ROUTES } from '../domain/routeModel.js';
 import type { MetroStation } from '../domain/stationModel.js';
 import { logger } from '../utils/logger.js';
 
@@ -32,6 +32,9 @@ export type MetroRouteShape = {
 };
 
 // Maps GTFS route identifiers (various ODPT naming styles) to line codes.
+// Intentionally METRO-ONLY: JR East GTFS/GTFS-RT on ODPT is challenge-2026
+// licensed, so its data must never enter the static cache. Keeping JR codes
+// out of this table (and out of normalizeRouteId) is that firewall.
 const LINE_NAME_TO_CODE: Array<[RegExp, string]> = [
   [/ginza/i, 'G'],
   [/marunouchi/i, 'M'],
@@ -55,7 +58,7 @@ export function normalizeRouteId(gtfsRouteId: string, longName = ''): string | n
   return null;
 }
 
-const layerHeightByRoute = new Map(TOKYO_METRO_ROUTES.map((r) => [r.routeId, r.layerHeight]));
+const layerHeightByRoute = new Map(ALL_ROUTES.map((r) => [r.routeId, r.layerHeight]));
 
 export function parseStops(
   stopsText: string,

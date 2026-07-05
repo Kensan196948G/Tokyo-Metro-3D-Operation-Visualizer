@@ -16,8 +16,9 @@ test('3D visualizer boots and shows live data', async ({ page }) => {
   await expect(page.locator('.brand p')).toContainText('東京メトロ');
   await expect(page.locator('#api-status')).toHaveText('接続中');
 
-  // All 9 lines listed in the control panel
-  await expect(page.locator('#line-list .line-row')).toHaveCount(9);
+  // 9 metro + 5 JR lines listed, grouped under two operator headers
+  await expect(page.locator('#line-list .line-row')).toHaveCount(14);
+  await expect(page.locator('#line-list .line-group-head')).toHaveCount(2);
 
   // WebGL canvas mounted
   await expect(page.locator('#canvas-container canvas')).toBeVisible();
@@ -36,6 +37,13 @@ test('3D visualizer boots and shows live data', async ({ page }) => {
   await page.locator('#search').fill('銀座');
   await expect(page.locator('#search-res .sr-item').first()).toBeVisible();
   await page.locator('#search').fill('');
+
+  // Group master toggle: JR-East off -> its 5 rows dim, back on -> restored
+  const jrToggle = page.locator('[data-group-toggle="JR-East"]');
+  await jrToggle.click();
+  await expect(page.locator('#line-list .line-row.off')).toHaveCount(5);
+  await page.locator('[data-group-toggle="JR-East"]').click();
+  await expect(page.locator('#line-list .line-row.off')).toHaveCount(0);
 
   // Camera preset buttons fly without errors
   await page.locator('.viewbtns button[data-view="top"]').click();
@@ -70,5 +78,5 @@ test('stations API is consistent with the scene', async ({ request }) => {
   expect(res.ok()).toBeTruthy();
   const body = await res.json();
   expect(body.ok).toBe(true);
-  expect(body.data.length).toBeGreaterThanOrEqual(170);
+  expect(body.data.length).toBeGreaterThanOrEqual(250);
 });

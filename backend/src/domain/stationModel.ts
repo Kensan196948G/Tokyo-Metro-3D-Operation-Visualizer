@@ -1,3 +1,5 @@
+import { ALL_ROUTES } from './routeModel.js';
+
 export type MetroStation = {
   stationId: string;
   name: string;
@@ -20,8 +22,10 @@ export function latLonToXZ(lat: number, lon: number): { x: number; z: number } {
   return { x, z };
 }
 
-// Mock stations for key Tokyo Metro stops
-export const MOCK_STATIONS: MetroStation[] = [
+// Mock stations for key Tokyo Metro stops. The literal y values below are
+// legacy layer heights — the exported arrays derive y from the route's
+// current layerHeight (see bottom of file), so these literals are inert.
+const METRO_RAW: MetroStation[] = [
   // 銀座線 (G)
   { stationId: 'G01', name: '渋谷', lat: 35.6581, lon: 139.7016, ...latLonToXZ(35.6581, 139.7016), y: 0, routeIds: ['G'] },
   { stationId: 'G02', name: '表参道', lat: 35.6654, lon: 139.7121, ...latLonToXZ(35.6654, 139.7121), y: 0, routeIds: ['G', 'C', 'H'] },
@@ -206,3 +210,104 @@ export const MOCK_STATIONS: MetroStation[] = [
   { stationId: 'F15', name: '明治神宮前', lat: 35.6693, lon: 139.7029, ...latLonToXZ(35.6693, 139.7029), y: 80, routeIds: ['F', 'C'] },
   { stationId: 'F16', name: '渋谷', lat: 35.6581, lon: 139.7016, ...latLonToXZ(35.6581, 139.7016), y: 80, routeIds: ['F', 'G', 'Z'] },
 ];
+
+// JR East surface-line stations (real coordinates, official station numbering
+// so stationId.localeCompare sorting yields geographic line order). routeIds
+// list JR codes only — metro entries above stay untouched, and cross-operator
+// interchange is intentionally not modelled here.
+const JR_RAW: MetroStation[] = [
+  // 山手線 (JY) — full loop, JY01 東京 → JY30 有楽町
+  { stationId: 'JY01', name: '東京', lat: 35.6812, lon: 139.7671, ...latLonToXZ(35.6812, 139.7671), y: 0, routeIds: ['JY', 'JC', 'JK'] },
+  { stationId: 'JY02', name: '神田', lat: 35.6918, lon: 139.7709, ...latLonToXZ(35.6918, 139.7709), y: 0, routeIds: ['JY', 'JC', 'JK'] },
+  { stationId: 'JY03', name: '秋葉原', lat: 35.6984, lon: 139.7731, ...latLonToXZ(35.6984, 139.7731), y: 0, routeIds: ['JY', 'JK', 'JB'] },
+  { stationId: 'JY04', name: '御徒町', lat: 35.7075, lon: 139.7747, ...latLonToXZ(35.7075, 139.7747), y: 0, routeIds: ['JY', 'JK'] },
+  { stationId: 'JY05', name: '上野', lat: 35.7141, lon: 139.7774, ...latLonToXZ(35.7141, 139.7774), y: 0, routeIds: ['JY', 'JK'] },
+  { stationId: 'JY06', name: '鶯谷', lat: 35.7206, lon: 139.7785, ...latLonToXZ(35.7206, 139.7785), y: 0, routeIds: ['JY', 'JK'] },
+  { stationId: 'JY07', name: '日暮里', lat: 35.7278, lon: 139.7708, ...latLonToXZ(35.7278, 139.7708), y: 0, routeIds: ['JY', 'JK'] },
+  { stationId: 'JY08', name: '西日暮里', lat: 35.7324, lon: 139.7669, ...latLonToXZ(35.7324, 139.7669), y: 0, routeIds: ['JY', 'JK'] },
+  { stationId: 'JY09', name: '田端', lat: 35.7381, lon: 139.7607, ...latLonToXZ(35.7381, 139.7607), y: 0, routeIds: ['JY', 'JK'] },
+  { stationId: 'JY10', name: '駒込', lat: 35.7365, lon: 139.7460, ...latLonToXZ(35.7365, 139.7460), y: 0, routeIds: ['JY'] },
+  { stationId: 'JY11', name: '巣鴨', lat: 35.7335, lon: 139.7394, ...latLonToXZ(35.7335, 139.7394), y: 0, routeIds: ['JY'] },
+  { stationId: 'JY12', name: '大塚', lat: 35.7311, lon: 139.7288, ...latLonToXZ(35.7311, 139.7288), y: 0, routeIds: ['JY'] },
+  { stationId: 'JY13', name: '池袋', lat: 35.7295, lon: 139.7109, ...latLonToXZ(35.7295, 139.7109), y: 0, routeIds: ['JY', 'JA'] },
+  { stationId: 'JY14', name: '目白', lat: 35.7212, lon: 139.7064, ...latLonToXZ(35.7212, 139.7064), y: 0, routeIds: ['JY'] },
+  { stationId: 'JY15', name: '高田馬場', lat: 35.7123, lon: 139.7030, ...latLonToXZ(35.7123, 139.7030), y: 0, routeIds: ['JY'] },
+  { stationId: 'JY16', name: '新大久保', lat: 35.7013, lon: 139.7005, ...latLonToXZ(35.7013, 139.7005), y: 0, routeIds: ['JY'] },
+  { stationId: 'JY17', name: '新宿', lat: 35.6896, lon: 139.7006, ...latLonToXZ(35.6896, 139.7006), y: 0, routeIds: ['JY', 'JC', 'JB', 'JA'] },
+  { stationId: 'JY18', name: '代々木', lat: 35.6830, lon: 139.7022, ...latLonToXZ(35.6830, 139.7022), y: 0, routeIds: ['JY', 'JB'] },
+  { stationId: 'JY19', name: '原宿', lat: 35.6702, lon: 139.7027, ...latLonToXZ(35.6702, 139.7027), y: 0, routeIds: ['JY'] },
+  { stationId: 'JY20', name: '渋谷', lat: 35.6580, lon: 139.7016, ...latLonToXZ(35.6580, 139.7016), y: 0, routeIds: ['JY', 'JA'] },
+  { stationId: 'JY21', name: '恵比寿', lat: 35.6467, lon: 139.7101, ...latLonToXZ(35.6467, 139.7101), y: 0, routeIds: ['JY', 'JA'] },
+  { stationId: 'JY22', name: '目黒', lat: 35.6339, lon: 139.7158, ...latLonToXZ(35.6339, 139.7158), y: 0, routeIds: ['JY'] },
+  { stationId: 'JY23', name: '五反田', lat: 35.6262, lon: 139.7233, ...latLonToXZ(35.6262, 139.7233), y: 0, routeIds: ['JY'] },
+  { stationId: 'JY24', name: '大崎', lat: 35.6197, lon: 139.7286, ...latLonToXZ(35.6197, 139.7286), y: 0, routeIds: ['JY', 'JA'] },
+  { stationId: 'JY25', name: '品川', lat: 35.6285, lon: 139.7388, ...latLonToXZ(35.6285, 139.7388), y: 0, routeIds: ['JY', 'JK'] },
+  { stationId: 'JY26', name: '高輪ゲートウェイ', lat: 35.6355, lon: 139.7407, ...latLonToXZ(35.6355, 139.7407), y: 0, routeIds: ['JY', 'JK'] },
+  { stationId: 'JY27', name: '田町', lat: 35.6457, lon: 139.7476, ...latLonToXZ(35.6457, 139.7476), y: 0, routeIds: ['JY', 'JK'] },
+  { stationId: 'JY28', name: '浜松町', lat: 35.6556, lon: 139.7570, ...latLonToXZ(35.6556, 139.7570), y: 0, routeIds: ['JY', 'JK'] },
+  { stationId: 'JY29', name: '新橋', lat: 35.6663, lon: 139.7583, ...latLonToXZ(35.6663, 139.7583), y: 0, routeIds: ['JY', 'JK'] },
+  { stationId: 'JY30', name: '有楽町', lat: 35.6749, lon: 139.7628, ...latLonToXZ(35.6749, 139.7628), y: 0, routeIds: ['JY', 'JK'] },
+  // 中央線快速 (JC) — 東京 → 荻窪
+  { stationId: 'JC01', name: '東京', lat: 35.6812, lon: 139.7671, ...latLonToXZ(35.6812, 139.7671), y: 0, routeIds: ['JC', 'JY', 'JK'] },
+  { stationId: 'JC02', name: '神田', lat: 35.6918, lon: 139.7709, ...latLonToXZ(35.6918, 139.7709), y: 0, routeIds: ['JC', 'JY', 'JK'] },
+  { stationId: 'JC03', name: '御茶ノ水', lat: 35.6994, lon: 139.7649, ...latLonToXZ(35.6994, 139.7649), y: 0, routeIds: ['JC', 'JB'] },
+  { stationId: 'JC04', name: '四ツ谷', lat: 35.6862, lon: 139.7302, ...latLonToXZ(35.6862, 139.7302), y: 0, routeIds: ['JC', 'JB'] },
+  { stationId: 'JC05', name: '新宿', lat: 35.6896, lon: 139.7006, ...latLonToXZ(35.6896, 139.7006), y: 0, routeIds: ['JC', 'JY', 'JB', 'JA'] },
+  { stationId: 'JC06', name: '中野', lat: 35.7056, lon: 139.6659, ...latLonToXZ(35.7056, 139.6659), y: 0, routeIds: ['JC', 'JB'] },
+  { stationId: 'JC07', name: '高円寺', lat: 35.7054, lon: 139.6497, ...latLonToXZ(35.7054, 139.6497), y: 0, routeIds: ['JC'] },
+  { stationId: 'JC08', name: '阿佐ケ谷', lat: 35.7047, lon: 139.6357, ...latLonToXZ(35.7047, 139.6357), y: 0, routeIds: ['JC'] },
+  { stationId: 'JC09', name: '荻窪', lat: 35.7043, lon: 139.6201, ...latLonToXZ(35.7043, 139.6201), y: 0, routeIds: ['JC'] },
+  // 京浜東北線 (JK) — 品川 → 田端 (都心区間)
+  { stationId: 'JK20', name: '品川', lat: 35.6285, lon: 139.7388, ...latLonToXZ(35.6285, 139.7388), y: 0, routeIds: ['JK', 'JY'] },
+  { stationId: 'JK21', name: '高輪ゲートウェイ', lat: 35.6355, lon: 139.7407, ...latLonToXZ(35.6355, 139.7407), y: 0, routeIds: ['JK', 'JY'] },
+  { stationId: 'JK22', name: '田町', lat: 35.6457, lon: 139.7476, ...latLonToXZ(35.6457, 139.7476), y: 0, routeIds: ['JK', 'JY'] },
+  { stationId: 'JK23', name: '浜松町', lat: 35.6556, lon: 139.7570, ...latLonToXZ(35.6556, 139.7570), y: 0, routeIds: ['JK', 'JY'] },
+  { stationId: 'JK24', name: '新橋', lat: 35.6663, lon: 139.7583, ...latLonToXZ(35.6663, 139.7583), y: 0, routeIds: ['JK', 'JY'] },
+  { stationId: 'JK25', name: '有楽町', lat: 35.6749, lon: 139.7628, ...latLonToXZ(35.6749, 139.7628), y: 0, routeIds: ['JK', 'JY'] },
+  { stationId: 'JK26', name: '東京', lat: 35.6812, lon: 139.7671, ...latLonToXZ(35.6812, 139.7671), y: 0, routeIds: ['JK', 'JY', 'JC'] },
+  { stationId: 'JK27', name: '神田', lat: 35.6918, lon: 139.7709, ...latLonToXZ(35.6918, 139.7709), y: 0, routeIds: ['JK', 'JY', 'JC'] },
+  { stationId: 'JK28', name: '秋葉原', lat: 35.6984, lon: 139.7731, ...latLonToXZ(35.6984, 139.7731), y: 0, routeIds: ['JK', 'JY', 'JB'] },
+  { stationId: 'JK29', name: '御徒町', lat: 35.7075, lon: 139.7747, ...latLonToXZ(35.7075, 139.7747), y: 0, routeIds: ['JK', 'JY'] },
+  { stationId: 'JK30', name: '上野', lat: 35.7141, lon: 139.7774, ...latLonToXZ(35.7141, 139.7774), y: 0, routeIds: ['JK', 'JY'] },
+  { stationId: 'JK31', name: '鶯谷', lat: 35.7206, lon: 139.7785, ...latLonToXZ(35.7206, 139.7785), y: 0, routeIds: ['JK', 'JY'] },
+  { stationId: 'JK32', name: '日暮里', lat: 35.7278, lon: 139.7708, ...latLonToXZ(35.7278, 139.7708), y: 0, routeIds: ['JK', 'JY'] },
+  { stationId: 'JK33', name: '西日暮里', lat: 35.7324, lon: 139.7669, ...latLonToXZ(35.7324, 139.7669), y: 0, routeIds: ['JK', 'JY'] },
+  { stationId: 'JK34', name: '田端', lat: 35.7381, lon: 139.7607, ...latLonToXZ(35.7381, 139.7607), y: 0, routeIds: ['JK', 'JY'] },
+  // 総武線各駅停車 (JB) — 中野 → 錦糸町
+  { stationId: 'JB07', name: '中野', lat: 35.7056, lon: 139.6659, ...latLonToXZ(35.7056, 139.6659), y: 0, routeIds: ['JB', 'JC'] },
+  { stationId: 'JB08', name: '東中野', lat: 35.7062, lon: 139.6839, ...latLonToXZ(35.7062, 139.6839), y: 0, routeIds: ['JB'] },
+  { stationId: 'JB09', name: '大久保', lat: 35.7009, lon: 139.6970, ...latLonToXZ(35.7009, 139.6970), y: 0, routeIds: ['JB'] },
+  { stationId: 'JB10', name: '新宿', lat: 35.6896, lon: 139.7006, ...latLonToXZ(35.6896, 139.7006), y: 0, routeIds: ['JB', 'JY', 'JC', 'JA'] },
+  { stationId: 'JB11', name: '代々木', lat: 35.6830, lon: 139.7022, ...latLonToXZ(35.6830, 139.7022), y: 0, routeIds: ['JB', 'JY'] },
+  { stationId: 'JB12', name: '千駄ケ谷', lat: 35.6811, lon: 139.7119, ...latLonToXZ(35.6811, 139.7119), y: 0, routeIds: ['JB'] },
+  { stationId: 'JB13', name: '信濃町', lat: 35.6800, lon: 139.7203, ...latLonToXZ(35.6800, 139.7203), y: 0, routeIds: ['JB'] },
+  { stationId: 'JB14', name: '四ツ谷', lat: 35.6862, lon: 139.7302, ...latLonToXZ(35.6862, 139.7302), y: 0, routeIds: ['JB', 'JC'] },
+  { stationId: 'JB15', name: '市ケ谷', lat: 35.6918, lon: 139.7354, ...latLonToXZ(35.6918, 139.7354), y: 0, routeIds: ['JB'] },
+  { stationId: 'JB16', name: '飯田橋', lat: 35.7021, lon: 139.7449, ...latLonToXZ(35.7021, 139.7449), y: 0, routeIds: ['JB'] },
+  { stationId: 'JB17', name: '水道橋', lat: 35.7020, lon: 139.7530, ...latLonToXZ(35.7020, 139.7530), y: 0, routeIds: ['JB'] },
+  { stationId: 'JB18', name: '御茶ノ水', lat: 35.6994, lon: 139.7649, ...latLonToXZ(35.6994, 139.7649), y: 0, routeIds: ['JB', 'JC'] },
+  { stationId: 'JB19', name: '秋葉原', lat: 35.6984, lon: 139.7731, ...latLonToXZ(35.6984, 139.7731), y: 0, routeIds: ['JB', 'JY', 'JK'] },
+  { stationId: 'JB20', name: '浅草橋', lat: 35.6986, lon: 139.7862, ...latLonToXZ(35.6986, 139.7862), y: 0, routeIds: ['JB'] },
+  { stationId: 'JB21', name: '両国', lat: 35.6961, lon: 139.7927, ...latLonToXZ(35.6961, 139.7927), y: 0, routeIds: ['JB'] },
+  { stationId: 'JB22', name: '錦糸町', lat: 35.6969, lon: 139.8138, ...latLonToXZ(35.6969, 139.8138), y: 0, routeIds: ['JB'] },
+  // 埼京線 (JA) — 大崎 → 赤羽
+  { stationId: 'JA08', name: '大崎', lat: 35.6197, lon: 139.7286, ...latLonToXZ(35.6197, 139.7286), y: 0, routeIds: ['JA', 'JY'] },
+  { stationId: 'JA09', name: '恵比寿', lat: 35.6467, lon: 139.7101, ...latLonToXZ(35.6467, 139.7101), y: 0, routeIds: ['JA', 'JY'] },
+  { stationId: 'JA10', name: '渋谷', lat: 35.6580, lon: 139.7016, ...latLonToXZ(35.6580, 139.7016), y: 0, routeIds: ['JA', 'JY'] },
+  { stationId: 'JA11', name: '新宿', lat: 35.6896, lon: 139.7006, ...latLonToXZ(35.6896, 139.7006), y: 0, routeIds: ['JA', 'JY', 'JC', 'JB'] },
+  { stationId: 'JA12', name: '池袋', lat: 35.7295, lon: 139.7109, ...latLonToXZ(35.7295, 139.7109), y: 0, routeIds: ['JA', 'JY'] },
+  { stationId: 'JA13', name: '板橋', lat: 35.7455, lon: 139.7195, ...latLonToXZ(35.7455, 139.7195), y: 0, routeIds: ['JA'] },
+  { stationId: 'JA14', name: '十条', lat: 35.7607, lon: 139.7222, ...latLonToXZ(35.7607, 139.7222), y: 0, routeIds: ['JA'] },
+  { stationId: 'JA15', name: '赤羽', lat: 35.7780, lon: 139.7209, ...latLonToXZ(35.7780, 139.7209), y: 0, routeIds: ['JA'] },
+];
+
+// Station y is DERIVED from the owning route's current layerHeight, so the
+// vertical redesign (subway negative / surface positive) propagates without
+// touching the literals above. Fallback 0 = ground for unknown codes.
+const LAYER_BY_ROUTE = new Map(ALL_ROUTES.map((r) => [r.routeId, r.layerHeight]));
+const withDerivedY = (list: MetroStation[]): MetroStation[] =>
+  list.map((s) => ({ ...s, y: LAYER_BY_ROUTE.get(s.routeIds[0]) ?? 0 }));
+
+export const METRO_MOCK_STATIONS: MetroStation[] = withDerivedY(METRO_RAW);
+export const JR_MOCK_STATIONS: MetroStation[] = withDerivedY(JR_RAW);
+export const MOCK_STATIONS: MetroStation[] = [...METRO_MOCK_STATIONS, ...JR_MOCK_STATIONS];

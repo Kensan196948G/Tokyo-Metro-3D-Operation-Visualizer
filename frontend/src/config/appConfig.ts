@@ -10,6 +10,12 @@ export const ROUTE_COLORS: Record<string, string> = {
   Z: '#8F76D6',
   N: '#00ACA9',
   F: '#9C5E31',
+  // JR East surface lines
+  JY: '#80C241',
+  JK: '#00B2E5',
+  JC: '#F15A22',
+  JB: '#FFD400',
+  JA: '#00AC9A',
 };
 
 export const STATUS_COLORS = {

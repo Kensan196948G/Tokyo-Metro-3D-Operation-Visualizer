@@ -1,5 +1,6 @@
 export type MetroRoute = {
   routeId: string;
+  operator: 'TokyoMetro' | 'JR-East';
   shortName: string;
   longName: string;
   color: string;

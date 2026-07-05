@@ -10,12 +10,12 @@ import type { MetroTrain, MetroAlert, TrainStatus } from '../domain/trainModel.j
 import type { MetroStation } from '../domain/stationModel.js';
 import { latLonToXZ, isValidLatLon } from '../utils/geo.js';
 import { normalizeRouteId } from './gtfsParser.js';
-import { TOKYO_METRO_ROUTES } from '../domain/routeModel.js';
+import { ALL_ROUTES } from '../domain/routeModel.js';
 
 const { transit_realtime } = GtfsRealtimeBindings;
 
 const DELAY_THRESHOLD_SECONDS = 60;
-const layerHeightByRoute = new Map(TOKYO_METRO_ROUTES.map((r) => [r.routeId, r.layerHeight]));
+const layerHeightByRoute = new Map(ALL_ROUTES.map((r) => [r.routeId, r.layerHeight]));
 
 export function decodeFeed(buf: Uint8Array): GtfsRealtimeBindings.transit_realtime.FeedMessage {
   return transit_realtime.FeedMessage.decode(buf);

@@ -65,7 +65,7 @@ describe('feedToTrains', () => {
     expect(trains[0].routeId).toBe('G');
     expect(trains[0].positionSource).toBe('gtfs-rt');
     expect(trains[0].lat).toBeCloseTo(35.67, 4);
-    expect(trains[0].y).toBe(0); // Ginza layer height
+    expect(trains[0].y).toBe(-4); // Ginza layer height (subway = below ground)
     expect(trains[0].status).toBe('normal');
   });
 

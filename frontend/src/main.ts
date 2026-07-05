@@ -281,20 +281,33 @@ function stationCount(routeId: string): number {
   return stations.filter((s) => s.routeIds.includes(routeId)).length;
 }
 
+const OPERATOR_GROUPS: Array<{ op: MetroRoute['operator']; label: string; en: string }> = [
+  { op: 'TokyoMetro', label: '地下鉄 · 東京メトロ', en: 'SUBWAY' },
+  { op: 'JR-East', label: '地上鉄道 · JR東日本', en: 'SURFACE' },
+];
+
+function lineRowHtml(r: MetroRoute): string {
+  const color = ROUTE_COLORS[r.routeId] ?? r.color ?? '#8a94ab';
+  const letter = esc(r.shortName || r.routeId);
+  return `<div class="line-row${r.visible ? '' : ' off'}" data-route="${esc(r.routeId)}">
+    <span class="line-badge${letter.length > 1 ? ' wide' : ''}" style="color:${esc(color)}">${letter}</span>
+    <span class="line-name">${esc(r.longName)}</span>
+    <span class="line-count">${stationCount(r.routeId)}駅</span>
+    <button class="line-drive-btn" data-drive="${esc(r.routeId)}">運転</button>
+  </div>`;
+}
+
 function updateLineList(): void {
   const el = byId('line-list');
-  el.innerHTML = routes
-    .map((r) => {
-      const color = ROUTE_COLORS[r.routeId] ?? r.color ?? '#8a94ab';
-      const letter = esc(r.shortName || r.routeId);
-      return `<div class="line-row${r.visible ? '' : ' off'}" data-route="${esc(r.routeId)}">
-        <span class="line-badge" style="color:${esc(color)}">${letter}</span>
-        <span class="line-name">${esc(r.longName)}</span>
-        <span class="line-count">${stationCount(r.routeId)}駅</span>
-        <button class="line-drive-btn" data-drive="${esc(r.routeId)}">運転</button>
-      </div>`;
-    })
-    .join('');
+  el.innerHTML = OPERATOR_GROUPS.map(({ op, label, en }) => {
+    const group = routes.filter((r) => r.operator === op);
+    if (group.length === 0) return '';
+    const anyOn = group.some((r) => r.visible);
+    return `<div class="line-group-head" data-group="${esc(op)}">
+        <span>${en}<i>${esc(label)}</i></span>
+        <button class="group-toggle" data-group-toggle="${esc(op)}">${anyOn ? '一括OFF' : '一括ON'}</button>
+      </div>${group.map(lineRowHtml).join('')}`;
+  }).join('');
 
   el.querySelectorAll<HTMLElement>('.line-row').forEach((row) => {
     row.addEventListener('click', () => {
@@ -314,6 +327,19 @@ function updateLineList(): void {
         if (tour.active) tour.stop();
         cab.enterCab(trainId);
       }
+    });
+  });
+  // Group master toggle: turn the whole operator on/off, then re-render the
+  // list (rebinds listeners and refreshes the button label consistently).
+  el.querySelectorAll<HTMLButtonElement>('.group-toggle').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const op = btn.dataset['groupToggle'];
+      const group = routes.filter((r) => r.operator === op);
+      const anyOn = group.some((r) => r.visible);
+      group.forEach((r) => (r.visible = !anyOn));
+      rebuildLayers();
+      updateLineList();
     });
   });
 }
