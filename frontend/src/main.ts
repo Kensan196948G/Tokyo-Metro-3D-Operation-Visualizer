@@ -176,8 +176,24 @@ function setApiStatus(ok: boolean): void {
   text.textContent = ok ? '接続中' : '未接続';
 }
 
+/** Current time in Asia/Tokyo regardless of the viewer's timezone — this is a
+ * Tokyo transit visualiser, so the clock and rush-hour phases follow Tokyo. */
+function tokyoParts(): { h: number; m: number; s: number } {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Tokyo',
+    hourCycle: 'h23',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(new Date());
+  const get = (t: string): number => Number(parts.find((p) => p.type === t)?.value ?? '0');
+  return { h: get('hour'), m: get('minute'), s: get('second') };
+}
+
 function setLastUpdate(): void {
-  byId('last-update').textContent = new Date().toLocaleTimeString('ja-JP');
+  const { h, m, s } = tokyoParts();
+  byId('last-update').textContent =
+    `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
 function updateStats(): void {
@@ -223,16 +239,13 @@ function phaseLabel(hour: number): string {
   return PHASES.find((p) => hour < p.until)?.label ?? 'LIVE';
 }
 
-/** Ticks the wall clock + day-progress indicator once per second. */
+/** Ticks the Tokyo wall clock + day-progress indicator once per second. */
 function tickClock(): void {
-  const now = new Date();
-  const hh = String(now.getHours()).padStart(2, '0');
-  const mm = String(now.getMinutes()).padStart(2, '0');
-  byId('sim-clock').textContent = `${hh}:${mm}`;
-  byId('sim-phase').textContent = phaseLabel(now.getHours());
+  const { h, m, s } = tokyoParts();
+  byId('sim-clock').textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  byId('sim-phase').textContent = phaseLabel(h);
 
-  const dayFrac =
-    (now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds()) / 86400;
+  const dayFrac = (h * 3600 + m * 60 + s) / 86400;
   const pct = `${(dayFrac * 100).toFixed(2)}%`;
   byId('day-fill').style.width = pct;
   byId('day-knob').style.left = pct;
