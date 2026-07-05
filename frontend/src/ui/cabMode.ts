@@ -6,7 +6,7 @@ import { ROUTE_COLORS } from '../config/appConfig.js';
 export type CabModeName = 'none' | 'chase' | 'cab';
 
 type Lookups = {
-  getTrain: (id: string) => { mesh: THREE.Mesh; train: MetroTrain } | undefined;
+  getTrain: (id: string) => { mesh: THREE.Object3D; train: MetroTrain } | undefined;
   getStation: (id: string) => MetroStation | undefined;
   getRoute: (id: string) => MetroRoute | undefined;
   /** Terminal station names of a line: direction '0' heads to `forward`. */
