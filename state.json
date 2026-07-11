@@ -6,7 +6,7 @@
     "phase_mode": "development",
     "registered_at": "2026-07-04"
   },
-  "goal": "達成: Cloudflare公開完了 https://railway.mirai-dx-platform.com (Tunnel metro3d/e836dee4)。残はODPTトークン登録(人間)による実データ化のみ",
+  "goal": "本番URL復旧完了(2026-07-12): リポジトリが ~/Projects/Mirai-DX-Project/ 配下へ移動→systemd unit が旧パス参照でクラッシュループ→Error1033。unitパス修正+再ビルド+.env再生成+アプリ/Tunnel再起動でLIVE復帰。https://railway.mirai-dx-platform.com (DEMO mock)。残はODPTトークン登録(#26・人間)による実データ化のみ",
   "phase": "Release",
   "release_status": "deployed",
   "deploy": {
@@ -60,7 +60,10 @@
     17,
     19,
     21,
-    23
+    23,
+    27,
+    28,
+    29
   ],
   "blocked_issues": [],
   "open_issues": [
@@ -69,24 +72,17 @@
       "title": "ODPTトークン登録と実データ検証(AC-006)",
       "owner": "human",
       "note": "現在DEMO(mock)で公開中。トークン設定のみで実データ化"
-    },
+    }
+  ],
+  "incidents": [
     {
-      "number": 27,
-      "title": "山手線の環状ループ描画",
-      "owner": "cto",
-      "note": "P3改善。loop フラグ+閉曲線化"
-    },
-    {
-      "number": 28,
-      "title": "地形マップタイル(CARTO)",
-      "owner": "cto",
-      "note": "P3・外部依存の整理要"
-    },
-    {
-      "number": 29,
-      "title": "運転席ミニマップ",
-      "owner": "cto",
-      "note": "P3改善"
+      "date": "2026-07-12",
+      "severity": "P1",
+      "title": "本番URL停止 (Cloudflare Error 1033)",
+      "root_cause": "リポジトリが ~/Projects/Tokyo-... から ~/Projects/Mirai-DX-Project/Tokyo-... へ移動された結果、systemd unit(metro3d.service)が旧パスの WorkingDirectory/EnvironmentFile を参照し起動失敗。Restart=always で56,660回クラッシュループ→origin(:3020)消失→cloudflaredがoriginへ到達不能=1033。",
+      "resolution": "unitのパスを実配置へ修正 / npm install+build(front/back) / .envをDEMO(PORT=3020,非production,トークン無mock)で再生成 / reset-failed / metro3d.service→metro3d-cloudflared.service の順で enable --now。localhost:3020とedge経由の両方でhealthy確認。",
+      "prevention": "リポジトリ内 systemd/metro3d-lan.service と docs/deployment.md の旧パスを Mirai-DX-Project 配下へ更新し、移動時の注意コメントを追記。README に障害復旧手順を追加。",
+      "human_approval": "公開Tunnel再起動(再公開)は AskUserQuestion で明示承認を取得済み"
     }
   ],
   "learning": {
@@ -99,7 +95,9 @@
       "gh pr edit は Projects(classic) 廃止エラーで失敗することがある → REST API 直叩き",
       "このホストは headless Chrome 全滅 (SIGTRAP) → E2E は GitHub Actions 上で実行",
       "pkill -f はコマンドライン一致で自分を殺す → fuser -k <port>/tcp を使用",
-      "cloudflared は localhost からプロキシするため remoteAddress 判定を素通し → cf-connecting-ip/cf-ray ヘッダ検出で403"
+      "cloudflared は localhost からプロキシするため remoteAddress 判定を素通し → cf-connecting-ip/cf-ray ヘッダ検出で403",
+      "リポジトリ移動で systemd unit の絶対パス(WorkingDirectory/EnvironmentFile)が旧位置を指し起動失敗→Restart=always でクラッシュループ→origin消失で Cloudflare 1033。unit は %h でホーム以下しか吸収できず配置変更に追随しない → 移動時は unit パス更新+daemon-reload が必須",
+      "移動でビルド成果物(dist/node_modules)と .env も消える → 復旧は npm install+build+.env再生成をセットで。.env の NODE_ENV=production はトークン必須(validateConfig)なので DEMO 復旧は非production必須"
     ],
     "success_patterns": [
       "Workflow による 39 ファイル並列生成 (5分・エラー0)",
@@ -157,6 +155,15 @@
         21
       ],
       "deployed": "https://railway.mirai-dx-platform.com (2026-07-05, DEMO mode)"
+    },
+    {
+      "date": "2026-07-12",
+      "session": 1,
+      "summary": "P1本番停止対応: ユーザーから Cloudflare Error 1033 報告。根本原因=リポジトリ移動でsystemd unitが旧パス参照→アプリ56,660回クラッシュループ→origin消失。unitパス修正/再ビルド/.env(DEMO,PORT3020,非production)再生成/reset-failed/アプリ→Tunnel順で再起動→LIVE復帰(edge経由healthy)。再発防止でrepo内旧パス(systemd/metro3d-lan.service, docs/deployment.md)修正+READMEに復旧手順追記。state.jsonのopen_issuesドリフト(#27-29クローズ済)解消。",
+      "branch": "fix/systemd-path-after-move",
+      "public_url_status": "LIVE (HTTP 200 via Cloudflare edge, DEMO mock)",
+      "human_approval": "公開Tunnel再起動を明示承認取得",
+      "validation": "localhost:3020 /api/health healthy, 公開URL /api/health healthy, front/backビルドgreen"
     }
   ],
   "maintenance": {

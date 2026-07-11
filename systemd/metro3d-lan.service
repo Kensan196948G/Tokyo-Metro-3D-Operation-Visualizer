@@ -5,14 +5,21 @@
 #   systemctl --user enable --now metro3d.service
 #   loginctl enable-linger $USER   # start at boot without login
 # Requires .env at the repo root with PORT / SERVE_STATIC_DIR (see .env.example).
+#
+# IMPORTANT: the two absolute paths below MUST match the repository's actual
+# location on the host. If you move/clone the repo elsewhere, update both lines
+# and run `systemctl --user daemon-reload && systemctl --user restart metro3d`.
+# A stale path here makes the unit crash-loop with
+#   "Failed to load environment files: No such file or directory"
+# and, since the tunnel origin dies, surfaces as a Cloudflare 1033 error.
 [Unit]
 Description=Tokyo Metro 3D Visualizer (API + Frontend, LAN single-service)
 After=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/Projects/Tokyo-Metro-3D-Operation-Visualizer/backend
-EnvironmentFile=%h/Projects/Tokyo-Metro-3D-Operation-Visualizer/.env
+WorkingDirectory=%h/Projects/Mirai-DX-Project/Tokyo-Metro-3D-Operation-Visualizer/backend
+EnvironmentFile=%h/Projects/Mirai-DX-Project/Tokyo-Metro-3D-Operation-Visualizer/.env
 ExecStart=/usr/bin/node dist/server.js
 Restart=always
 RestartSec=5
