@@ -45,7 +45,7 @@ ODPT_API_TOKEN=<発行したトークン>
 ODPT_GTFS_URL=<ODPT の GTFS zip URL>
 ODPT_GTFS_RT_URL=<ODPT の GTFS-RT URL>
 FRONTEND_ORIGIN=https://railway.mirai-dx-platform.com
-SERVE_STATIC_DIR=/home/kensan/Projects/Tokyo-Metro-3D-Operation-Visualizer/frontend/dist
+SERVE_STATIC_DIR=/home/kensan/Projects/Mirai-DX-Project/Tokyo-Metro-3D-Operation-Visualizer/frontend/dist
 FETCH_INTERVAL_SECONDS=15
 ```
 
