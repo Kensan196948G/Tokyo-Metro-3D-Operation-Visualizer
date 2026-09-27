@@ -6,7 +6,7 @@
  */
 import { config } from '../config.js';
 import { logger } from '../utils/logger.js';
-import { maskApiKey } from '../utils/validation.js';
+import { requestFeed } from './feedRequest.js';
 import { cacheStore } from './cacheStore.js';
 import { loadStations } from './normalizer.js';
 import { decodeFeed, feedToTrains, feedToAlerts } from './gtfsRtDecoder.js';
@@ -37,21 +37,22 @@ export async function fetchAndDecodeRt(
       alertCount: prior?.alertCount ?? 0,
       error,
     };
-    cacheStore.write('rt-meta', meta);
+    try {
+      cacheStore.write('rt-meta', meta);
+    } catch {
+      meta.error = 'Cache write failed';
+    }
     logger.error({ error, consecutiveFailures: meta.consecutiveFailures }, 'GTFS-RT: fetch failed');
     return meta;
   };
 
   if (!url) return fail('ODPT_GTFS_RT_URL not configured');
 
-  const requestUrl = token ? appendToken(url, token) : url;
-  logger.info({ url: maskUrl(requestUrl) }, 'GTFS-RT: downloading');
+  logger.info('GTFS-RT: downloading');
 
   let buf: Uint8Array;
   try {
-    const res = await fetch(requestUrl);
-    if (!res.ok) return fail(`HTTP ${res.status}`);
-    buf = new Uint8Array(await res.arrayBuffer());
+    buf = await requestFeed(url, token, 15_000, 10 * 1024 * 1024);
   } catch (err) {
     return fail(err instanceof Error ? err.message : String(err));
   }
@@ -74,16 +75,7 @@ export async function fetchAndDecodeRt(
     cacheStore.write('rt-meta', meta);
     logger.info({ trains: trains.length, alerts: alerts.length }, 'GTFS-RT: decoded and cached');
     return meta;
-  } catch (err) {
-    return fail(`decode failed: ${err instanceof Error ? err.message : String(err)}`);
+  } catch {
+    return fail('Feed decode or cache write failed');
   }
-}
-
-function appendToken(url: string, token: string): string {
-  const sep = url.includes('?') ? '&' : '?';
-  return `${url}${sep}acl:consumerKey=${encodeURIComponent(token)}`;
-}
-
-function maskUrl(url: string): string {
-  return url.replace(/(consumerKey=)[^&]+/i, (_, p1: string) => p1 + maskApiKey(config.odptApiToken));
 }

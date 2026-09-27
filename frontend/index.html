@@ -1327,19 +1327,38 @@
         animation-delay: 0.15s;
       }
       #timebar.rise {
+        animation-name: timebar-rise;
         animation-delay: 0.35s;
+      }
+      @keyframes timebar-rise {
+        from { opacity: 0; transform: translate(-50%, 18px); }
+        to { opacity: 1; transform: translate(-50%, 0); }
       }
 
       @media (max-width: 720px) {
+        #header { padding: 16px; flex-direction: column; gap: 12px; background: rgba(5, 7, 13, 0.94); }
+        .brand h1 { font-size: 22px; letter-spacing: 0; }
+        .brand p { font-size: 10px; letter-spacing: 0; }
+        .clockbox { width: 100%; flex-direction: row; justify-content: space-between; }
+        .clockbox .api, .clockbox .hud { letter-spacing: 0; white-space: nowrap; font-size: 10px; }
+        #panel-tab { top: 100px; left: 16px; }
         #panel {
-          top: 96px;
-          bottom: 150px;
-          width: 240px;
+          top: 134px;
+          left: 16px;
+          bottom: 110px;
+          width: min(240px, calc(100vw - 32px));
         }
         #timebar {
-          gap: 12px;
-          padding: 10px 14px;
+          gap: 8px;
+          padding: 10px;
+          width: calc(100% - 32px);
+          max-width: none;
+          justify-content: space-between;
+          flex-wrap: wrap;
         }
+        .clock-wrap { min-width: 70px; }
+        #sim-clock { font-size: 22px; letter-spacing: 0; }
+        .datasrc { letter-spacing: 0; }
         .timeslider-wrap {
           display: none;
         }

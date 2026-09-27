@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { logger } from '../utils/logger.js';
 import { config } from '../config.js';
 
@@ -23,10 +24,19 @@ export class CacheStore {
 
   write<T>(key: string, data: T): void {
     const file = path.join(this.dir, `${key}.json`);
+    const temporary = `${file}.${randomUUID()}.tmp`;
     try {
-      fs.writeFileSync(file, JSON.stringify(data, null, 2));
-    } catch (err) {
-      logger.error({ err, key }, 'CacheStore: write failed');
+      fs.writeFileSync(temporary, JSON.stringify(data, null, 2), { flag: 'wx', mode: 0o600 });
+      fs.renameSync(temporary, file);
+    } catch {
+      logger.error({ key }, 'CacheStore: write failed');
+      throw new Error('Cache write failed');
+    } finally {
+      try {
+        fs.rmSync(temporary, { force: true });
+      } catch {
+        logger.warn({ key }, 'CacheStore: temporary file cleanup failed');
+      }
     }
   }
 

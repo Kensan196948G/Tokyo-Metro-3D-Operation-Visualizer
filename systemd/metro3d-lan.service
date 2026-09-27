@@ -18,9 +18,10 @@ After=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/Projects/Mirai-DX-Project/Tokyo-Metro-3D-Operation-Visualizer/backend
-EnvironmentFile=%h/Projects/Mirai-DX-Project/Tokyo-Metro-3D-Operation-Visualizer/.env
-ExecStart=/usr/bin/node dist/server.js
+WorkingDirectory=%h/Projects/Mirai-Admin-Platform/Tokyo-Metro-3D-Operation-Visualizer/backend
+EnvironmentFile=%h/Projects/Mirai-Admin-Platform/Tokyo-Metro-3D-Operation-Visualizer/.env
+# Override an obsolete absolute SERVE_STATIC_DIR in an existing EnvironmentFile.
+ExecStart=/usr/bin/env SERVE_STATIC_DIR=../frontend/dist /usr/bin/node dist/server.js
 Restart=always
 RestartSec=5
 

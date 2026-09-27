@@ -53,6 +53,8 @@
 
 ## 🚀 クイックスタート
 
+Node.js 20.19以上（22系は22.12以上）を使用します。CIはNode.js 22で検証します。
+
 ### バックエンド
 
 ```bash
@@ -84,6 +86,19 @@ npm run dev
 | ODPT_API_TOKEN | ODPT アクセストークン | xxxxxxxx |
 | FRONTEND_ORIGIN | CORS 許可オリジン | http://localhost:5173 |
 | FETCH_INTERVAL_SECONDS | RT 取得間隔(秒) | 15 |
+| VITE_BASEMAP_TILE_URL | 任意の公開タイルURLテンプレート（Frontendビルド時、秘密値不可） | `/tiles/{z}/{x}/{y}.png` |
+
+地形タイルの旧CARTO URLは認証要求画像を返すため、既定では地形グリッドのみ表示します。
+契約・利用条件・出典表示を確認した公開タイル配信先を設定した場合のみ地形マップを有効化します。
+ODPT APIキーなどの秘密値を`VITE_*`へ設定しないでください。
+
+## 品質確認
+
+`backend/`と`frontend/`で`npm ci`後、`npm run typecheck`、`npm run lint`、`npm test`、
+`npm run build`、`npm audit --audit-level=high`を実行します。
+単一サービスを起動して`frontend/`から`E2E_BASE_URL=http://localhost:<port> npx playwright test`で
+通常操作・通信断・初期失敗・不正応答・空データ・モバイル・Canvas描画の回帰を確認できます。
+CIで検証した成果物の本番反映と復旧は[リリース運用](docs/release-operations.md)を参照してください。
 
 ## 📡 API エンドポイント
 
@@ -134,12 +149,13 @@ loginctl enable-linger $USER
 ```bash
 # 1. アプリunitのパスがリポジトリ実配置と一致しているか確認
 systemctl --user cat metro3d | grep -E 'WorkingDirectory|EnvironmentFile'
-#   → 実際の repo パス（例: %h/Projects/Mirai-DX-Project/Tokyo-Metro-3D-Operation-Visualizer）と一致必須
+#   → 実際の repo パス（例: %h/Projects/Mirai-Admin-Platform/Tokyo-Metro-3D-Operation-Visualizer）と一致必須
 
 # 2. 不一致なら unit を更新 → 依存とビルドと .env を用意
 cp systemd/metro3d-lan.service ~/.config/systemd/user/metro3d.service   # ← パスは実配置に合わせて編集
 cd frontend && npm install && npm run build && cd ../backend && npm install && npm run build && cd ..
-cp .env.example .env   # PORT=3020 / SERVE_STATIC_DIR=<絶対パス>/frontend/dist / NODE_ENV は非production(DEMO時)
+# 既存.envは上書きしない。新規環境のみ.env.exampleから作成する。
+# PORT=3020 / SERVE_STATIC_DIR=../frontend/dist / NODE_ENV は非production(DEMO時)
 
 # 3. アプリ→Tunnel の順に復旧
 systemctl --user daemon-reload
@@ -148,6 +164,7 @@ systemctl --user enable --now metro3d.service
 curl -s http://localhost:3020/api/health          # → status: healthy
 systemctl --user enable --now metro3d-cloudflared.service
 curl -s https://railway.mirai-dx-platform.com/api/health   # → edge経由で healthy
+curl --fail https://railway.mirai-dx-platform.com/         # HTMLも必ず確認
 ```
 
 ## 🔄 データ取得コマンド
@@ -176,7 +193,8 @@ npm run fetch:realtime   # GTFS-RT (protobuf) 取得→デコード→キャッ�
 
 - ODPT API キーはバックエンドのみで保持（フロントエンドに露出しない）
 - `.env` は .gitignore 対象
-- 管理 API はローカルからのみアクセス可能
+- 管理 API はローカルのCLIからのみアクセス可能（Cloudflare転送・ブラウザOrigin付き要求は拒否）
+- GTFS取得は時間・サイズ上限付き。失敗時は前回キャッシュを保持し、画面で通信断・古い実データを表示
 
 ## ⚠️ 免責事項
 

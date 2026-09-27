@@ -146,6 +146,19 @@ describe('GET /api/status', () => {
 });
 
 describe('POST /api/admin/refetch', () => {
+  it.each([
+    { origin: 'https://untrusted.example' },
+    { 'sec-fetch-site': 'cross-site' },
+  ])('rejects browser-initiated requests even on loopback: %j', async (headers) => {
+    const res = await app.inject({ method: 'POST', url: '/api/admin/refetch', headers });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('rejects a remote peer even with a spoofed localhost Host header', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/admin/refetch',
+      remoteAddress: '203.0.113.10', headers: { host: 'localhost' } });
+    expect(res.statusCode).toBe(403);
+  });
   it('is reachable from localhost injection and reports fetch failure without token', async () => {
     // inject() sets remoteAddress to 127.0.0.1, passing the local-only gate;
     // with no ODPT URLs configured both fetches fail -> 502 envelope.

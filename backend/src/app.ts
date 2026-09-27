@@ -32,7 +32,7 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
     if (fs.existsSync(path.join(root, 'index.html'))) {
       await app.register(fastifyStatic, { root });
     } else {
-      app.log.warn({ root }, 'SERVE_STATIC_DIR has no index.html; static serving skipped');
+      throw new Error('SERVE_STATIC_DIR has no index.html; refusing incomplete deployment');
     }
   }
 
@@ -46,12 +46,15 @@ export async function buildApp(options: { logger?: boolean } = {}): Promise<Fast
   // A Cloudflare Tunnel (cloudflared) proxies FROM localhost, so the peer
   // check alone would pass for internet traffic — any cf-* proxy header
   // therefore also rejects. (Clients can't strip headers Cloudflare adds.)
+  // CLI-only: CORS does not stop browser POST side effects on localhost.
   app.post('/api/admin/refetch', async (req, reply) => {
     const remote = req.socket.remoteAddress ?? '';
     const viaCloudflare =
       req.headers['cf-connecting-ip'] !== undefined || req.headers['cf-ray'] !== undefined;
     const isLocal =
       !viaCloudflare &&
+      req.headers.origin === undefined &&
+      req.headers['sec-fetch-site'] === undefined &&
       (remote === '127.0.0.1' || remote === '::1' || remote === '::ffff:127.0.0.1');
     if (!isLocal) {
       return reply.status(403).send({
