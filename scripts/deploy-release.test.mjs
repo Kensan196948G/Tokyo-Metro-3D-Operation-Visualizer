@@ -1,11 +1,56 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Script } from 'node:vm';
-import { validateIdentifiers, validateRuntime, verifyGate, validateArchive, serviceDropin, RUNTIME_CHECK } from './deploy-release.mjs';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { validateIdentifiers, validateRuntime, verifyGate, validateArchive, serviceDropin, verifyServiceDropin, RUNTIME_CHECK } from './deploy-release.mjs';
 
 const sha = 'a'.repeat(40);
 const successful = { path: '.github/workflows/ci.yml', head_sha: sha, status: 'completed',
   conclusion: 'success', event: 'push', head_branch: 'main' };
+
+function analyzeDropin(contents) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'metro3d-unit-test-'));
+  try {
+    const unit = path.join(dir, 'metro3d-preflight.service');
+    fs.writeFileSync(unit, `[Unit]\nDefaultDependencies=no\n[Service]\nType=simple\n${contents}`);
+    return spawnSync('systemd-analyze', ['--generators=no', '--man=no', 'verify', unit], {
+      encoding: 'utf8', timeout: 15_000,
+      env: { ...process.env, LC_ALL: 'C', SYSTEMD_LOG_LEVEL: 'warning', SYSTEMD_LOG_TARGET: 'console', SYSTEMD_COLORS: '0',
+        SYSTEMD_UNIT_PATH: dir },
+    });
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+test('systemd parser accepts generated WorkingDirectory and EnvironmentFile directives', () => {
+  for (const release of ['/tmp/metro3d-release', '/tmp/metro3d space %/release']) {
+    const contents = serviceDropin(release, '/tmp/metro3d root %');
+    const result = analyzeDropin(contents);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr.trim(), '');
+    assert.doesNotThrow(() => verifyServiceDropin(contents));
+  }
+});
+
+test('preflight rejects the production incident quoted-path regression', () => {
+  const corrected = serviceDropin('/tmp/metro3d-release', '/tmp/metro3d-root');
+  for (const directive of ['WorkingDirectory', 'EnvironmentFile']) {
+    const broken = corrected.replace(new RegExp(`^${directive}=(/.+)$`, 'm'), `${directive}="$1"`);
+    const result = analyzeDropin(broken);
+    assert.match(result.stderr, /not absolute|Invalid argument|bad unit file/i);
+    assert.throws(() => verifyServiceDropin(broken), /preflight failed/);
+  }
+});
+
+test('preflight rejects ignored directives even when systemd verify exits zero', () => {
+  const broken = `${serviceDropin('/tmp/metro3d-release', '/tmp/metro3d-root')}UnknownMetroDirective=true\n`;
+  const result = analyzeDropin(broken);
+  assert.equal(result.status, 0);
+  assert.match(result.stderr, /Unknown key/);
+  assert.throws(() => verifyServiceDropin(broken), /preflight failed/);
+});
 
 test('runtime gate accepts supported patches and rejects older or unsupported runtimes', () => {
   for (const version of ['v20.19.0', 'v20.20.2', 'v20.21.0', 'v22.12.0', 'v22.22.3', 'v24.0.0', 'v25.0.0']) {
@@ -73,8 +118,8 @@ test('archive permits release files and rejects traversal, links, secrets and un
 
 test('drop-in resets obsolete executable and environment file while retaining production secrets in place', () => {
   const unit = serviceDropin(`/home/test/releases/${sha}`, '/home/test/current');
-  assert.match(unit, /WorkingDirectory="\/home\/test\/releases\/a{40}\/backend"/);
-  assert.match(unit, /EnvironmentFile=\nEnvironmentFile="\/home\/test\/current\/\.env"/);
+  assert.match(unit, /WorkingDirectory=\/home\/test\/releases\/a{40}\/backend\n/);
+  assert.match(unit, /EnvironmentFile=\nEnvironmentFile=\/home\/test\/current\/\.env\n/);
   assert.match(unit, /ExecStart=\nExecStart=\/usr\/bin\/env/);
   assert.match(unit, /"SERVE_STATIC_DIR=\/home\/test\/releases\/a{40}\/frontend\/dist"/);
   assert.match(unit, /"CACHE_DIR=\/home\/test\/current\/backend\/data\/cache"/);
@@ -83,4 +128,7 @@ test('drop-in resets obsolete executable and environment file while retaining pr
   assert.match(serviceDropin('/home/test/space %/release'), /space %%/);
   assert.throws(() => serviceDropin('/home/test/\nrelease'));
   assert.throws(() => serviceDropin('relative'));
+  for (const unsafe of ['quote"', 'back\\slash', '$variable', '*glob', '[glob]']) {
+    assert.throws(() => serviceDropin(`/tmp/${unsafe}`));
+  }
 });
