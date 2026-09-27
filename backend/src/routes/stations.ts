@@ -3,7 +3,7 @@ import { loadStations } from '../services/normalizer.js';
 
 export async function stationsRoute(app: FastifyInstance): Promise<void> {
   app.get('/api/stations', async (_req, reply) => {
-    const { stations, source } = loadStations();
+    const { stations, source } = await loadStations();
     return reply.send({
       ok: true,
       data: stations,

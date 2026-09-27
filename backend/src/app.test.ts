@@ -82,8 +82,6 @@ describe('GET /api/stations', () => {
 });
 
 describe('GET /api/realtime/trains', () => {
-  // Runs FIRST in this block: the route module reads the disk cache once per
-  // TTL, so the fixture must be on disk before the first request lands.
   it('merges real metro trains with JR mocks (cache present)', async () => {
     const fakeReal = [
       {
@@ -97,7 +95,7 @@ describe('GET /api/realtime/trains', () => {
         updatedAt: new Date().toISOString(),
       },
     ];
-    cacheStore.write('trains', fakeReal);
+    await cacheStore.write('trains', fakeReal);
     const res = await app.inject({ method: 'GET', url: '/api/realtime/trains' });
     const body = res.json();
     expect(body.ok).toBe(true);
@@ -108,7 +106,7 @@ describe('GET /api/realtime/trains', () => {
     expect(ids.some((id: string) => id.startsWith('G-mock'))).toBe(false);
     // ...while JR (challenge-licensed feed, never wired) stays mocked.
     expect(body.data.some((t: { routeId?: string }) => t.routeId === 'JY')).toBe(true);
-    cacheStore.write('trains', []); // cleanup for the mock-path test below
+    await cacheStore.write('trains', []);
   });
 
   it('returns positioned trains', async () => {

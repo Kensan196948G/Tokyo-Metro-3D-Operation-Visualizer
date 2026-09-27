@@ -178,6 +178,13 @@ npm run fetch:realtime   # GTFS-RT (protobuf) 取得→デコード→キャッ�
 `.env` の `ODPT_API_TOKEN` / `ODPT_GTFS_URL` / `ODPT_GTFS_RT_URL` が必要。
 未設定・未取得時は自動的にモックデータで動作します。
 
+## Local PostgreSQL
+
+`CACHE_BACKEND=postgres` とRepository外の保護された `DATABASE_URL` でPostgreSQL保存を利用する。
+既定の `file` はJSON互換モード。DB障害時はモックへ切り替えずAPI/Healthが503を返す。
+Migration、Seed、専用Role、Backup/Restore、JSON移行とRollbackは
+[Local PostgreSQL設計と運用](docs/postgresql.md) を参照。
+
 ## 🗺️ 開発フェーズ
 
 | フェーズ | 状態 | 内容 |

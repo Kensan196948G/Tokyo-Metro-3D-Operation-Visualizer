@@ -8,6 +8,7 @@ const ROOT = '/home/kensan/Projects/Mirai-Admin-Platform/Tokyo-Metro-3D-Operatio
 const STATE = path.join(os.homedir(), '.local/share/metro3d');
 const RELEASES = path.join(STATE, 'releases');
 const DROPIN = path.join(os.homedir(), '.config/systemd/user/metro3d.service.d/90-metro3d-release.conf');
+const DATABASE_ENV = path.join(os.homedir(), '.config/metro3d/metro3d.env');
 const NODE = '/usr/bin/node';
 const SERVICE = 'metro3d.service';
 const MANAGED = '# Managed by metro3d deploy-release.mjs';
@@ -65,14 +66,15 @@ function systemdPath(value) {
 }
 
 // Path directives consume an unquoted path; only ExecStart tokenizes quoted arguments.
-export function serviceDropin(release, root = ROOT) {
+export function serviceDropin(release, root = ROOT, databaseEnvironment) {
   const backend = systemdPath(path.join(release, 'backend'));
   const envFile = systemdPath(path.join(root, '.env'));
   const staticDir = systemdPath(path.join(release, 'frontend/dist'));
   const cacheDir = systemdPath(path.join(root, 'backend/data/cache'));
-  return `${MANAGED}\n[Service]\nWorkingDirectory=${backend}\nEnvironmentFile=\nEnvironmentFile=${envFile}\n` +
+  const database = databaseEnvironment ? `EnvironmentFile=${systemdPath(databaseEnvironment)}\n` : '';
+  return `${MANAGED}\n[Service]\nWorkingDirectory=${backend}\nEnvironmentFile=\nEnvironmentFile=${envFile}\n${database}` +
     `ExecStart=\nExecStart=/usr/bin/env "SERVE_STATIC_DIR=${staticDir}" ` +
-    `"CACHE_DIR=${cacheDir}" /usr/bin/node dist/server.js\n`;
+    `"CACHE_DIR=${cacheDir}" "CACHE_BACKEND=${databaseEnvironment ? 'postgres' : 'file'}" /usr/bin/node dist/server.js\n`;
 }
 
 export function verifyServiceDropin(contents) {
@@ -139,6 +141,7 @@ function installAndCheck(release) {
   const cache = fs.mkdtempSync(path.join(os.tmpdir(), 'metro3d-release-check-'));
   try {
     run(NODE, ['-e', RUNTIME_CHECK], { cwd: backend, env: { ...process.env, NODE_ENV: 'development',
+      CACHE_BACKEND: 'file', DATABASE_URL: '',
       ODPT_API_TOKEN: '', ODPT_GTFS_URL: '', ODPT_GTFS_RT_URL: '',
       SERVE_STATIC_DIR: path.join(release, 'frontend/dist'), CACHE_DIR: cache, LOG_LEVEL: 'silent' } });
   } finally { fs.rmSync(cache, { recursive: true, force: true }); }
@@ -194,12 +197,32 @@ function prepare(sha, runId) {
   } finally { fs.rmSync(staging, { recursive: true, force: true }); }
 }
 
-async function verifyHttp() {
+export function verifyStorageHealth(body, expectedStorage) {
+  if (body?.data?.status !== 'healthy' || (expectedStorage && body.data.storage !== expectedStorage)) {
+    throw new Error('Release storage health does not match the expected backend');
+  }
+}
+
+export function validateDatabaseEnvironment(file, required = false, uid = process.getuid()) {
+  let stat;
+  try { stat = fs.lstatSync(file); }
+  catch (error) {
+    if (error.code !== 'ENOENT' || required) throw new Error('Database environment is unavailable');
+    return false;
+  }
+  if (!stat.isFile() || (stat.mode & 0o777) !== 0o600 || stat.uid !== uid) {
+    throw new Error('Database environment must be a service-owned regular file with mode 0600');
+  }
+  return true;
+}
+
+async function verifyHttp(expectedStorage) {
   for (let attempt = 0; attempt < 15; attempt++) {
     try {
       const options = { signal: AbortSignal.timeout(3000), redirect: 'error' };
       const health = await fetch('http://127.0.0.1:3020/api/health', options);
-      if (!health.ok || (await health.json()).data?.status !== 'healthy') throw new Error();
+      if (!health.ok) throw new Error();
+      verifyStorageHealth(await health.json(), expectedStorage);
       const root = await fetch('http://127.0.0.1:3020/', { ...options, signal: AbortSignal.timeout(3000) });
       if (!root.ok) throw new Error();
       const html = await root.text();
@@ -239,7 +262,9 @@ async function activate(sha, runId) {
   if (!fs.existsSync(path.join(ROOT, '.env'))) throw new Error('Existing production EnvironmentFile is missing');
   const previous = fs.existsSync(DROPIN) ? fs.readFileSync(DROPIN, 'utf8') : null;
   if (previous !== null && !previous.startsWith(`${MANAGED}\n`)) throw new Error('Refusing to replace an unmanaged drop-in');
-  const candidate = serviceDropin(target);
+  const previousUsesDatabase = previous?.includes(`EnvironmentFile=${systemdPath(DATABASE_ENV)}\n`) ?? false;
+  const hasDatabase = validateDatabaseEnvironment(DATABASE_ENV, previousUsesDatabase);
+  const candidate = serviceDropin(target, ROOT, hasDatabase ? DATABASE_ENV : undefined);
   const baselineDropin = serviceDropin(fallback);
   const rollback = previous ?? baselineDropin;
   for (const contents of new Set([candidate, rollback, baselineDropin])) verifyServiceDropin(contents);
@@ -250,13 +275,13 @@ async function activate(sha, runId) {
   try {
     writeDropin(candidate);
     restart();
-    await verifyHttp();
+    await verifyHttp(hasDatabase ? 'postgres' : 'file');
     console.log(`Activated ${sha}; local health, root, and linked assets passed.`);
   } catch {
     try {
       writeDropin(rollback);
       restart();
-      await verifyHttp();
+      await verifyHttp(previousUsesDatabase ? 'postgres' : undefined);
     } catch {
       try {
         writeDropin(baselineDropin);

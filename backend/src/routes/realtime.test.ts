@@ -7,10 +7,8 @@ afterEach(() => { vi.restoreAllMocks(); });
 
 describe('realtime cache semantics', () => {
   it('preserves a successful empty Metro feed without inventing trains', async () => {
-    vi.spyOn(cacheStore, 'read').mockImplementation((key) => {
-      if (key === 'trains') return [];
-      if (key === 'rt-meta') return { success: true, fetchedAt: new Date().toISOString() };
-      return null;
+    vi.spyOn(cacheStore, 'readMany').mockResolvedValue({
+      trains: [], 'rt-meta': { success: true, fetchedAt: new Date().toISOString() },
     });
     const app = Fastify();
     await app.register(realtimeRoute);
@@ -22,10 +20,8 @@ describe('realtime cache semantics', () => {
   });
 
   it('marks cached alerts stale after upstream updates stop', async () => {
-    vi.spyOn(cacheStore, 'read').mockImplementation((key) => {
-      if (key === 'alerts') return [];
-      if (key === 'rt-meta') return { success: true, fetchedAt: '2000-01-01T00:00:00.000Z' };
-      return null;
+    vi.spyOn(cacheStore, 'readMany').mockResolvedValue({
+      alerts: [], 'rt-meta': { success: true, fetchedAt: '2000-01-01T00:00:00.000Z' },
     });
     const app = Fastify();
     await app.register(realtimeRoute);
@@ -36,10 +32,8 @@ describe('realtime cache semantics', () => {
   });
 
   it('reports the retained real feed as stale when a refresh fails', async () => {
-    vi.spyOn(cacheStore, 'read').mockImplementation((key) => {
-      if (key === 'trains') return [];
-      if (key === 'rt-meta') return { success: false, fetchedAt: 'invalid' };
-      return null;
+    vi.spyOn(cacheStore, 'readMany').mockResolvedValue({
+      trains: [], 'rt-meta': { success: false, fetchedAt: 'invalid' },
     });
     const app = Fastify();
     await app.register(realtimeRoute);

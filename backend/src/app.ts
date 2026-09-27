@@ -15,11 +15,25 @@ import { stationsRoute } from './routes/stations.js';
 import { realtimeRoute } from './routes/realtime.js';
 import { fetchAndNormalizeGtfs } from './services/gtfsFetcher.js';
 import { fetchAndDecodeRt } from './services/gtfsRtFetcher.js';
+import { cacheStore } from './services/cacheStore.js';
+import { StorageError } from './services/storageError.js';
 
 export async function buildApp(options: { logger?: boolean } = {}): Promise<FastifyInstance> {
   const app = Fastify({
     logger: options.logger === false ? false : { level: config.logLevel },
   });
+
+  app.setErrorHandler((error, _req, reply) => {
+    if (error instanceof StorageError) {
+      return reply.status(503).send({
+        ok: false,
+        error: { code: 'STORAGE_UNAVAILABLE', message: 'Storage temporarily unavailable' },
+        meta: { generatedAt: new Date().toISOString(), stale: true },
+      });
+    }
+    return reply.send(error);
+  });
+  app.addHook('onClose', async () => { await cacheStore.close(); });
 
   await app.register(cors, {
     origin: config.frontendOrigin,

@@ -3,6 +3,9 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { logger } from '../utils/logger.js';
 import { config } from '../config.js';
+import pg from 'pg';
+import { PostgresStore } from './postgresStore.js';
+import { StorageError } from './storageError.js';
 
 export class CacheStore {
   private readonly dir: string;
@@ -45,4 +48,52 @@ export class CacheStore {
   }
 }
 
-export const cacheStore = new CacheStore();
+export interface AsyncCacheStore {
+  read<T>(key: string): Promise<T | null>;
+  readMany(keys: string[]): Promise<Record<string, unknown | null>>;
+  write<T>(key: string, data: T): Promise<void>;
+  writeBatch(entries: Record<string, unknown>): Promise<void>;
+  exists(key: string): Promise<boolean>;
+  health(): Promise<void>;
+  close(): Promise<void>;
+}
+
+class AsyncFileStore implements AsyncCacheStore {
+  constructor(private readonly store = new CacheStore()) {}
+  async read<T>(key: string): Promise<T | null> { return this.store.read<T>(key); }
+  async readMany(keys: string[]): Promise<Record<string, unknown | null>> {
+    return Object.fromEntries(keys.map((key) => [key, this.store.read(key)]));
+  }
+  async write<T>(key: string, data: T): Promise<void> {
+    try { this.store.write(key, data); } catch { throw new StorageError(); }
+  }
+  async writeBatch(entries: Record<string, unknown>): Promise<void> {
+    for (const [key, value] of Object.entries(entries)) await this.write(key, value);
+  }
+  async exists(key: string): Promise<boolean> { return this.store.exists(key); }
+  async health(): Promise<void> {
+    try { fs.accessSync(config.cacheDir, fs.constants.R_OK | fs.constants.W_OK); }
+    catch { throw new StorageError(); }
+  }
+  async close(): Promise<void> {}
+}
+
+function createStore(): AsyncCacheStore {
+  if (config.cacheBackend === 'file') return new AsyncFileStore();
+  if (config.cacheBackend !== 'postgres' || !config.databaseUrl) {
+    throw new Error('Invalid storage configuration');
+  }
+  const pool = new pg.Pool({
+    connectionString: config.databaseUrl,
+    max: 5,
+    connectionTimeoutMillis: 5_000,
+    idleTimeoutMillis: 30_000,
+    statement_timeout: 5_000,
+    query_timeout: 6_000,
+    application_name: 'metro3d-api',
+  });
+  pool.on('error', () => logger.error('PostgreSQL connection unavailable'));
+  return new PostgresStore(pool);
+}
+
+export const cacheStore: AsyncCacheStore = createStore();

@@ -13,6 +13,18 @@ jobs:
   backend:
     name: Backend (typecheck + test)
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: metro3d_test_ci
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['127.0.0.1:5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_ADMIN_DATABASE_URL: postgresql://postgres@127.0.0.1:5432/metro3d_test_ci
+      TEST_DATABASE_URL: postgresql://metro3d_ci_app@127.0.0.1:5432/metro3d_test_ci
     defaults:
       run:
         working-directory: backend
@@ -27,6 +39,13 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+      - name: PostgreSQL migration and restricted-role integration
+        run: |
+          psql "$TEST_ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE ROLE metro3d_ci_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE'
+          DATABASE_URL="$TEST_ADMIN_DATABASE_URL" npm run db:migrate
+          DATABASE_URL="$TEST_ADMIN_DATABASE_URL" DB_RUNTIME_ROLE=metro3d_ci_app npx tsx src/db/cli.ts grant
+          npm run test:db
+          npx tsx --test src/db/backup.integration.ts
       - run: node --test ../scripts/deploy-release.test.mjs
       - run: npm run build
       - run: npm audit --audit-level=high
@@ -55,6 +74,15 @@ jobs:
     name: E2E (Playwright smoke)
     runs-on: ubuntu-latest
     needs: [backend, frontend]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: metro3d_test_e2e
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['127.0.0.1:5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -69,12 +97,23 @@ jobs:
       - name: Install Playwright Chromium
         working-directory: frontend
         run: npx playwright install --with-deps chromium
+      - name: Prepare PostgreSQL-backed preview
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://postgres@127.0.0.1:5432/metro3d_test_e2e
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c 'CREATE ROLE metro3d_e2e_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE'
+          npm run db:migrate
+          DB_RUNTIME_ROLE=metro3d_e2e_app npx tsx src/db/cli.ts grant
+          npm run db:seed
       - name: Start single-service app
         working-directory: backend
         env:
           PORT: 3020
           SERVE_STATIC_DIR: ${{ github.workspace }}/frontend/dist
           FRONTEND_ORIGIN: http://localhost:3020
+          CACHE_BACKEND: postgres
+          DATABASE_URL: postgresql://metro3d_e2e_app@127.0.0.1:5432/metro3d_test_e2e
         run: |
           node dist/server.js &
           for i in $(seq 1 30); do

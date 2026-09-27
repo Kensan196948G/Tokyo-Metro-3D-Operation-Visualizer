@@ -9,6 +9,13 @@
     "start": "node dist/server.js",
     "fetch:static": "tsx src/scripts/fetch-gtfs.ts",
     "fetch:realtime": "tsx src/scripts/fetch-gtfs-rt.ts",
+    "db:migrate": "tsx src/db/cli.ts migrate",
+    "db:seed": "tsx src/db/cli.ts seed",
+    "db:import": "tsx src/db/cli.ts import",
+    "db:export": "tsx src/db/cli.ts export",
+    "db:backup": "tsx src/db/cli.ts backup",
+    "db:restore": "tsx src/db/cli.ts restore",
+    "test:db": "tsx --test src/db/postgres.integration.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src --ext .ts",
@@ -21,17 +28,21 @@
     "fastify": "^5.12.5",
     "fflate": "^0.8.3",
     "gtfs-realtime-bindings": "^1.0.0",
+    "pg": "^8.23.0",
     "pino": "^9.0.0",
     "pino-pretty": "^11.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.12.0",
+    "@types/pg": "^8.23.1",
+    "eslint": "^9.39.5",
     "tsx": "^4.11.0",
     "typescript": "^5.4.5",
-    "vitest": "^4.1.11",
+    "typescript-eslint": "^8.70.1",
     "vite": "^7.3.6",
-    "eslint": "^9.39.5",
-    "typescript-eslint": "^8.70.1"
+    "vitest": "^4.1.11"
   },
-  "engines": { "node": "^20.19.0 || >=22.12.0" }
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  }
 }

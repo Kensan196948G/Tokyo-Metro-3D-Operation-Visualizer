@@ -12,6 +12,8 @@ export default defineConfig({
     env: {
       // Keep test writes (gtfsFetcher cache/raw output) out of data/cache
       CACHE_DIR: path.join(os.tmpdir(), `metro3d-test-${process.pid}`, 'cache'),
+      CACHE_BACKEND: 'file',
+      DATABASE_URL: '',
       // Never let tests reach the real ODPT API, even with a developer .env
       ODPT_API_TOKEN: '',
       ODPT_GTFS_URL: '',
