@@ -78,3 +78,25 @@ CARTOの認証を回避せず、利用可能なtile契約/配信設定が得ら�
 地形グリッド、路線、駅、列車は描画できる。配信URLをVITE変数へ入れる場合、公開可能なものに限る。
 CI成果物とmain SHAを照合するrelease手順を追加し、運用復旧を手動再buildから切り離す。
 全Goalの完了には、ODPT実データ、DB要件の適用判断、OpenDesign/Memory連携の検証が残る。
+
+## Round 8: 本番反映失敗とbaseline復旧
+
+PR #37のmerge SHA `778a1f5862fe000e7aef8699ece9f9dc354b9e60`、main CI
+`36320497766` は全Required Checks成功。CI成果物を準備し、本番Node20.20.2で
+候補リリースを起動、Playwright 8件成功後、ユーザーの明示承認を受けてactivateを実行した。
+
+最初のactivateと自動baseline rollbackは失敗した。`systemd-analyze --user verify`
+で `WorkingDirectory= path is not absolute` を再現。ExecStart引数用の引用符を
+WorkingDirectoryとEnvironmentFileにも付けていたため、systemdが設定を正しく解釈せず、
+旧WorkingDirectoryと読み込めないEnvironmentFileにより起動できなくなった。
+単体テストは誤った生成文字列を正解として検証しており、実systemd parserの検証が欠けていた。
+アプリのinject/HTTP/Playwright成功はサービス設定の正当性を証明していなかった。
+
+新リリース適用を止め、専用drop-inの当該2行の外側引用符を除去してbaselineへ復旧した。
+2026-09-27 21:59:55 JSTにサービスactiveを確認。localhostおよびCloudflare公開URLの
+rootとHealthがHTTP200。公開JSはbaselineとSHA-256一致。DNS、Secrets、DBは変更していない。
+この復旧を新リリースの配備成功とは扱わない。baselineは旧依存のため暫定復旧に限定する。
+
+再発防止はdirective別のencoding、実systemd parserによる回帰検証、サービス停止前の
+生成設定preflight。修正は別PRとRequired Checksを経由し、再度CI成果物を準備・Preview検証
+してから反映する。Rollbackでも同じ生成処理を使うため、その設定も停止前に検証する。

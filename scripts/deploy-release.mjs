@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = '/home/kensan/Projects/Mirai-Admin-Platform/Tokyo-Metro-3D-Operation-Visualizer';
@@ -57,20 +57,39 @@ export function validateArchive(entries, types) {
   }
 }
 
-function quoteUnit(value) {
-  if (!path.isAbsolute(value) || /[\r\n\0]/.test(value)) throw new Error('Invalid systemd path');
-  return `"${value.replace(/%/g, '%%').replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+function systemdPath(value) {
+  if (!path.isAbsolute(value) || /[\x00-\x1f\x7f\\"$*?\[\]]/.test(value)) {
+    throw new Error('Unsupported systemd path');
+  }
+  return value.replace(/%/g, '%%');
 }
 
-// systemd token quoting differs from shell quoting; values are never evaluated by a shell.
+// Path directives consume an unquoted path; only ExecStart tokenizes quoted arguments.
 export function serviceDropin(release, root = ROOT) {
-  const backend = quoteUnit(path.join(release, 'backend'));
-  const envFile = quoteUnit(path.join(root, '.env'));
-  const staticDir = quoteUnit(path.join(release, 'frontend/dist'));
-  const cacheDir = quoteUnit(path.join(root, 'backend/data/cache'));
+  const backend = systemdPath(path.join(release, 'backend'));
+  const envFile = systemdPath(path.join(root, '.env'));
+  const staticDir = systemdPath(path.join(release, 'frontend/dist'));
+  const cacheDir = systemdPath(path.join(root, 'backend/data/cache'));
   return `${MANAGED}\n[Service]\nWorkingDirectory=${backend}\nEnvironmentFile=\nEnvironmentFile=${envFile}\n` +
-    `ExecStart=\nExecStart=/usr/bin/env "SERVE_STATIC_DIR=${staticDir.slice(1, -1)}" ` +
-    `"CACHE_DIR=${cacheDir.slice(1, -1)}" /usr/bin/node dist/server.js\n`;
+    `ExecStart=\nExecStart=/usr/bin/env "SERVE_STATIC_DIR=${staticDir}" ` +
+    `"CACHE_DIR=${cacheDir}" /usr/bin/node dist/server.js\n`;
+}
+
+export function verifyServiceDropin(contents) {
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'metro3d-unit-preflight-'));
+  try {
+    const unit = path.join(temporary, 'metro3d-preflight.service');
+    fs.writeFileSync(unit, `[Unit]\nDefaultDependencies=no\n[Service]\nType=simple\n${contents}`, { mode: 0o600 });
+    const result = spawnSync('systemd-analyze', ['--generators=no', '--man=no', 'verify', unit], {
+      encoding: 'utf8', timeout: 15_000,
+      env: { ...process.env, LC_ALL: 'C', SYSTEMD_LOG_LEVEL: 'warning', SYSTEMD_LOG_TARGET: 'console', SYSTEMD_COLORS: '0',
+        SYSTEMD_UNIT_PATH: temporary },
+    });
+    // Some invalid directives emit warnings while verify still exits successfully.
+    if (result.error || result.status !== 0 || result.stderr.trim()) {
+      throw new Error('systemd preflight failed; production configuration and service are unchanged');
+    }
+  } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
 }
 
 function run(command, args, options = {}) {
@@ -220,13 +239,16 @@ async function activate(sha, runId) {
   if (!fs.existsSync(path.join(ROOT, '.env'))) throw new Error('Existing production EnvironmentFile is missing');
   const previous = fs.existsSync(DROPIN) ? fs.readFileSync(DROPIN, 'utf8') : null;
   if (previous !== null && !previous.startsWith(`${MANAGED}\n`)) throw new Error('Refusing to replace an unmanaged drop-in');
+  const candidate = serviceDropin(target);
+  const baselineDropin = serviceDropin(fallback);
+  const rollback = previous ?? baselineDropin;
+  for (const contents of new Set([candidate, rollback, baselineDropin])) verifyServiceDropin(contents);
   const backup = path.join(STATE, 'backups', `${Date.now()}-${sha}`);
   fs.mkdirSync(backup, { recursive: true });
   fs.writeFileSync(path.join(backup, 'previous.json'), JSON.stringify({ contents: previous }), { mode: 0o600 });
   // The original unit points to a removed checkout. The baseline drop-in is the first-deploy rollback.
-  const rollback = previous ?? serviceDropin(fallback);
   try {
-    writeDropin(serviceDropin(target));
+    writeDropin(candidate);
     restart();
     await verifyHttp();
     console.log(`Activated ${sha}; local health, root, and linked assets passed.`);
@@ -237,7 +259,7 @@ async function activate(sha, runId) {
       await verifyHttp();
     } catch {
       try {
-        writeDropin(serviceDropin(fallback));
+        writeDropin(baselineDropin);
         restart();
         await verifyHttp();
       } catch {

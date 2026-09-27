@@ -4,7 +4,7 @@
 
 ## 前提とGate
 
-- 作業主体はサービスを所有するユーザー。`gh`、`tar`、`systemctl --user`、`/usr/bin/node`、`/usr/bin/npm` を使用する。
+- 作業主体はサービスを所有するユーザー。`gh`、`tar`、`systemctl --user`、`systemd-analyze`、`/usr/bin/node`、`/usr/bin/npm` を使用する。
 - 現Production runtimeは `/usr/bin/node v20.20.2`。対応範囲は20.19以降の20系、22.12以降の22系、24以上。準備時にこの実行ファイルで本番依存をインストールし、Fastifyの実ルートへのinjectでhealth、HTML、HTMLから参照されるJS/CSSを検証する。
 - Repository rootは `/home/kensan/Projects/Mirai-Admin-Platform/Tokyo-Metro-3D-Operation-Visualizer`。既存 `.env` はその場でsystemdから参照し、スクリプトは内容を読み出さず、コピー・ログ出力しない。
 - 指定SHAはGitHub上の現在のmainと一致しなければならない。指定runは `.github/workflows/ci.yml`、mainへのpush、同一SHA、completed/successであることをprepareとactivateの両方で確認する。
@@ -32,6 +32,8 @@ node scripts/deploy-release.mjs --activate <full-sha> <runid>
 専用drop-inでWorkingDirectory、EnvironmentFile、ExecStartを置換する。ExecStartは `/usr/bin/env` から `SERVE_STATIC_DIR` をrelease内frontend/dist、`CACHE_DIR` を現rootのbackend/data/cacheに固定し、`/usr/bin/node dist/server.js` を実行する。`.env` 内の古いパスよりこの指定が優先される。
 
 daemon-reload/restart後、localhostのhealth、root HTML、参照JS/CSSをHTTP検証する。失敗時は前回drop-inへ戻して再起動・再検証する。初回、または前回releaseも復旧できない場合はbaselineを指すdrop-inで復旧する。復旧できてもコマンドは失敗終了し、新release成功とは扱わない。
+
+WorkingDirectory等のパス指定とExecStartの引数は同じ引用規則ではない。生成文字列のUnit Testに加え、実systemd parserによる検証を必須とする。2026-09-27の初回反映では引用符付きWorkingDirectory/EnvironmentFileが起動失敗を起こし、自動Rollbackも同じ生成不具合で失敗した。専用drop-inを訂正してbaselineへ復旧したが、この操作は新リリースの配備成功ではない。詳細は `docs/deep-debug-2026-09-27.md` のRound 8を参照。
 
 ## 遅延障害の手動Rollback
 
