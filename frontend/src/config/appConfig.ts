@@ -1,4 +1,5 @@
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
+export const BASEMAP_TILE_URL = import.meta.env.VITE_BASEMAP_TILE_URL ?? '';
 
 export const ROUTE_COLORS: Record<string, string> = {
   G: '#FF9500',

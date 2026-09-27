@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import type { MetroStation } from '../types/metro.js';
+import { BASEMAP_TILE_URL } from '../config/appConfig.js';
 
 /**
- * Ground basemap (reference v2's 地形マップ): CARTO dark raster tiles are
+ * Ground basemap (reference v2's 地形マップ): configured raster tiles are
  * stitched into one canvas texture and laid under the network at y≈0.
  * Attribution (© OpenStreetMap contributors / © CARTO) is shown in the
  * panel footer. Tiles load lazily; failures leave dark gaps (no retry).
@@ -12,7 +13,7 @@ const ZOOM = 13; // ~8km tiles at Tokyo latitude — city detail without bulk
 const MAX_TILES = 120; // safety cap (network bbox at z13 is ~5×5)
 
 const tileUrl = (z: number, x: number, y: number): string =>
-  `https://basemaps.cartocdn.com/dark_all/${z}/${x}/${y}.png`;
+  BASEMAP_TILE_URL.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y));
 
 // Web-Mercator slippy-map tile math
 const lon2tile = (lon: number, z: number): number => ((lon + 180) / 360) * 2 ** z;
@@ -49,7 +50,7 @@ export class MapLayer {
    * backend projection constants change.
    */
   async build(stations: MetroStation[], opacity: number): Promise<void> {
-    if (this.built || stations.length < 2) return;
+    if (!BASEMAP_TILE_URL || this.built || stations.length < 2) return;
     this.built = true;
 
     // Affine fit: x = ax·lon + bx, z = az·lat + bz (scene is equirectangular)

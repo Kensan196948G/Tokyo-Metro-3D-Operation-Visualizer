@@ -8,7 +8,7 @@ import path from 'node:path';
 import { unzipSync, strFromU8 } from 'fflate';
 import { config } from '../config.js';
 import { logger } from '../utils/logger.js';
-import { maskApiKey } from '../utils/validation.js';
+import { requestFeed } from './feedRequest.js';
 import { cacheStore } from './cacheStore.js';
 import {
   parseStops,
@@ -37,16 +37,11 @@ export async function fetchAndNormalizeGtfs(
     return { ok: false, stationCount: 0, shapeCount: 0, fetchedAt, error: 'ODPT_GTFS_URL not configured' };
   }
 
-  const requestUrl = token ? appendToken(url, token) : url;
-  logger.info({ url: maskUrl(requestUrl) }, 'GTFS static: downloading');
+  logger.info('GTFS static: downloading');
 
   let zipBuf: Uint8Array;
   try {
-    const res = await fetch(requestUrl);
-    if (!res.ok) {
-      return { ok: false, stationCount: 0, shapeCount: 0, fetchedAt, error: `HTTP ${res.status}` };
-    }
-    zipBuf = new Uint8Array(await res.arrayBuffer());
+    zipBuf = await requestFeed(url, token, 60_000, 50 * 1024 * 1024);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, stationCount: 0, shapeCount: 0, fetchedAt, error: message };
@@ -59,7 +54,18 @@ export async function fetchAndNormalizeGtfs(
 export function normalizeGtfsZip(zipBuf: Uint8Array, fetchedAt: string): GtfsFetchResult {
   let files: Record<string, Uint8Array>;
   try {
-    files = unzipSync(zipBuf);
+    let totalSize = 0;
+    let entries = 0;
+    files = unzipSync(zipBuf, {
+      filter: (entry) => {
+        totalSize += entry.originalSize;
+        entries += 1;
+        if (totalSize > 200 * 1024 * 1024 || entries > 1000) {
+          throw new Error('GTFS archive exceeds extraction limit');
+        }
+        return true;
+      },
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, stationCount: 0, shapeCount: 0, fetchedAt, error: `unzip failed: ${message}` };
@@ -102,22 +108,17 @@ export function normalizeGtfsZip(zipBuf: Uint8Array, fetchedAt: string): GtfsFet
   const shapeRouteMap = tripsText ? buildShapeRouteMap(tripsText, routesText) : new Map<string, string>();
   const shapes = shapesText ? parseShapes(shapesText, shapeRouteMap) : [];
 
-  cacheStore.write('stations', stations);
-  cacheStore.write('route-shapes', shapes);
-  cacheStore.write('gtfs-meta', { fetchedAt, stationCount: stations.length, shapeCount: shapes.length });
+  try {
+    cacheStore.write('stations', stations);
+    cacheStore.write('route-shapes', shapes);
+    cacheStore.write('gtfs-meta', { fetchedAt, stationCount: stations.length, shapeCount: shapes.length });
+  } catch {
+    return { ok: false, stationCount: 0, shapeCount: 0, fetchedAt, error: 'Cache write failed' };
+  }
 
   logger.info(
     { stations: stations.length, shapes: shapes.length },
     'GTFS static: normalized and cached'
   );
   return { ok: true, stationCount: stations.length, shapeCount: shapes.length, fetchedAt };
-}
-
-function appendToken(url: string, token: string): string {
-  const sep = url.includes('?') ? '&' : '?';
-  return `${url}${sep}acl:consumerKey=${encodeURIComponent(token)}`;
-}
-
-function maskUrl(url: string): string {
-  return url.replace(/(consumerKey=)[^&]+/i, (_, p1: string) => p1 + maskApiKey(config.odptApiToken));
 }

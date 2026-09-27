@@ -3,7 +3,7 @@ import type { MetroStation, MetroRoute } from '../types/metro.js';
 
 export type LabelMode = 'none' | 'major' | 'all';
 
-type LabelEntry = { sprite: THREE.Sprite; major: boolean };
+type LabelEntry = { sprite: THREE.Sprite; major: boolean; worldHeight: number; aspect: number };
 
 /**
  * Billboard station-name labels rendered as canvas-texture sprites.
@@ -24,6 +24,17 @@ export class StationLabelLayer {
   setMode(mode: LabelMode): void {
     this.mode = mode;
     this.applyVisibility();
+  }
+
+  clampScreenSize(camera: THREE.PerspectiveCamera, viewportHeight: number): void {
+    const view = new THREE.Vector3();
+    const unitsPerPixel = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) / viewportHeight;
+    for (const entry of this.entries) {
+      if (!entry.sprite.visible) continue;
+      view.copy(entry.sprite.position).applyMatrix4(camera.matrixWorldInverse);
+      const height = Math.min(entry.worldHeight, Math.max(0.01, -view.z * unitsPerPixel * 24));
+      entry.sprite.scale.set(height * entry.aspect, height, 1);
+    }
   }
 
   private applyVisibility(): void {
@@ -49,7 +60,7 @@ export class StationLabelLayer {
       const y = (routeHeight.get(primary) ?? 0) * depthScale + 3.2;
       sprite.position.set(station.x, y, station.z);
       this.group.add(sprite);
-      this.entries.push({ sprite, major });
+      this.entries.push({ sprite, major, worldHeight: sprite.scale.y, aspect: sprite.scale.x / sprite.scale.y });
     }
 
     this.applyVisibility();

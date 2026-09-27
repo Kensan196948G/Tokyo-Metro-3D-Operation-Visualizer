@@ -10,11 +10,10 @@ import { CabModeController } from './ui/cabMode.js';
 import { TourController } from './ui/tour.js';
 import { FactsRotator } from './ui/facts.js';
 import {
-  fetchHealth,
   fetchRoutes,
   fetchStations,
   fetchRouteShapes,
-  fetchTrains,
+  fetchTrainSnapshot,
   fetchAlerts,
 } from './api/metroApi.js';
 import type {
@@ -24,7 +23,7 @@ import type {
   MetroTrain,
   MetroAlert,
 } from './types/metro.js';
-import { ROUTE_COLORS, UPDATE_INTERVAL_MS } from './config/appConfig.js';
+import { BASEMAP_TILE_URL, ROUTE_COLORS, UPDATE_INTERVAL_MS } from './config/appConfig.js';
 
 // ---------------------------------------------------------------------------
 // State
@@ -34,6 +33,8 @@ let stations: MetroStation[] = [];
 let shapes: MetroRouteShape[] = [];
 let trains: MetroTrain[] = [];
 let alerts: MetroAlert[] = [];
+let initialized = false;
+let realtimeStale = false;
 
 let depthScale = 1;
 let labelMode: LabelMode = 'major';
@@ -63,6 +64,7 @@ metro.scene.add(trainLayer.getGroup());
 
 // Frame-by-frame train interpolation (smooth motion between 15s polls)
 metro.onFrame((now) => trainLayer.tick(now));
+metro.onFrame(() => labelLayer.clampScreenSize(metro.camera, container.clientHeight));
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -456,11 +458,14 @@ function updateTrainCount(): void {
 function updateDataSource(): void {
   const el = byId('data-src');
   const hasReal = trains.some(
-    (t) => t.positionSource === 'gtfs-rt' || t.positionSource === 'interpolated'
+    (t) => t.positionSource !== 'mock'
   );
   if (trains.length === 0) {
     el.className = 'datasrc';
     el.textContent = 'SOURCE –';
+  } else if (hasReal && realtimeStale) {
+    el.className = 'datasrc mock';
+    el.textContent = 'STALE 前回データ';
   } else if (hasReal) {
     el.className = 'datasrc live';
     el.textContent = 'LIVE 実データ';
@@ -550,6 +555,14 @@ function wireControls(): void {
   bindToggle('toggle-map', (on) => mapLayer.setVisible(on));
   const mapOp = byId<HTMLInputElement>('map-op');
   const mapOpVal = byId('map-op-val');
+  if (!BASEMAP_TILE_URL) {
+    const toggle = byId<HTMLButtonElement>('toggle-map');
+    toggle.disabled = true;
+    toggle.classList.remove('on');
+    toggle.title = '地図データ未設定';
+    mapOp.disabled = true;
+    mapOpVal.textContent = '未設定';
+  }
   mapOp.addEventListener('input', () => {
     mapOpVal.textContent = `${mapOp.value}%`;
     mapLayer.setOpacity(Number(mapOp.value) / 100);
@@ -645,22 +658,23 @@ function dismissLoader(): void {
   byId('timebar').classList.add('rise');
 }
 
-async function init(): Promise<void> {
-  wireControls();
-  wireCompass();
-  tickClock();
-  setInterval(tickClock, 1000);
-
-  const health = await fetchHealth();
-  setApiStatus(!!health);
-
-  [routes, stations, shapes, trains, alerts] = await Promise.all([
+async function loadInitialData(): Promise<void> {
+  const [nextRoutes, nextStations, nextShapes, snapshot, nextAlerts] = await Promise.all([
     fetchRoutes(),
     fetchStations(),
     fetchRouteShapes(),
-    fetchTrains(),
+    fetchTrainSnapshot(),
     fetchAlerts(),
   ]);
+  if (!nextRoutes || !nextStations || !nextShapes || !snapshot?.data || !nextAlerts) {
+    throw new Error('Initial API data unavailable');
+  }
+  routes = nextRoutes;
+  stations = nextStations;
+  shapes = nextShapes;
+  trains = snapshot.data;
+  alerts = nextAlerts;
+  realtimeStale = snapshot.meta?.stale ?? true;
 
   stationById.clear();
   for (const s of stations) stationById.set(s.stationId, s);
@@ -680,16 +694,23 @@ async function init(): Promise<void> {
   updateTrainCount();
   updateDataSource();
   setLastUpdate();
+  setApiStatus(true);
+  initialized = true;
   dismissLoader();
-
-  new FactsRotator(byId('f-body'), byId('f-dots')).start();
 }
 
 // Periodic refresh of live data
 async function update(): Promise<void> {
   try {
-    trains = await fetchTrains();
-    alerts = await fetchAlerts();
+    if (!initialized) {
+      await loadInitialData();
+      return;
+    }
+    const [snapshot, nextAlerts] = await Promise.all([fetchTrainSnapshot(), fetchAlerts()]);
+    if (!snapshot?.data || !nextAlerts) throw new Error('Realtime API data unavailable');
+    trains = snapshot.data;
+    alerts = nextAlerts;
+    realtimeStale = snapshot.meta?.stale ?? true;
     trainLayer.update(trains, routes, depthScale);
     updateAlertList();
     updateTrainCount();
@@ -697,16 +718,32 @@ async function update(): Promise<void> {
     setApiStatus(true);
     setLastUpdate();
   } catch {
+    realtimeStale = true;
+    updateDataSource();
     setApiStatus(false);
+    dismissLoader();
   }
 }
 
-init().catch((err) => {
-  console.error(err);
-  dismissLoader();
-});
+async function init(): Promise<void> {
+  wireControls();
+  wireCompass();
+  tickClock();
+  setInterval(tickClock, 1000);
+  new FactsRotator(byId('f-body'), byId('f-dots')).start();
+  await update();
+  setTimeout(() => void refresh(), 3000);
+}
+
+async function refresh(): Promise<void> {
+  try {
+    await update();
+  } finally {
+    setTimeout(() => void refresh(), UPDATE_INTERVAL_MS);
+  }
+}
+
 // First refresh arrives early: the initial snapshot places trains with
 // from==to (no glide), so motion only starts at the next poll — pull that
 // forward so the scene (and cab speedometer) comes alive within seconds.
-setTimeout(update, 3000);
-setInterval(update, UPDATE_INTERVAL_MS);
+void init();

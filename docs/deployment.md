@@ -45,7 +45,7 @@ ODPT_API_TOKEN=<発行したトークン>
 ODPT_GTFS_URL=<ODPT の GTFS zip URL>
 ODPT_GTFS_RT_URL=<ODPT の GTFS-RT URL>
 FRONTEND_ORIGIN=https://railway.mirai-dx-platform.com
-SERVE_STATIC_DIR=/home/kensan/Projects/Mirai-DX-Project/Tokyo-Metro-3D-Operation-Visualizer/frontend/dist
+SERVE_STATIC_DIR=../frontend/dist
 FETCH_INTERVAL_SECONDS=15
 ```
 
@@ -108,6 +108,10 @@ journalctl --user -u metro3d -n 20    # ポーリングが 15 秒間隔で succe
 - [ ] `curl -s -X POST -H 'cf-connecting-ip: 1.2.3.4' https://railway.mirai-dx-platform.com/api/admin/refetch` が **403**
 
 ## 4️⃣ ロールバック
+
+2026-09-27以降の検証済み成果物による反映は[リリース運用](release-operations.md)を使用する。
+フォルダ移動後はHealthだけが200でもHTMLが404になる場合があるため、`/`とJSアセットまで検証する。
+`SERVE_STATIC_DIR`指定先が存在しない場合は、APIだけを正常扱いせず起動を失敗させる。
 
 | 事象 | 対応 |
 |---|---|

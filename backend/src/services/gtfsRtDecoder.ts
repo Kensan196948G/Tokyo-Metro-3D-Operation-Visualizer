@@ -6,7 +6,7 @@
  *   2. TripUpdate current stop lookup -> positionSource "station-based"
  */
 import GtfsRealtimeBindings from 'gtfs-realtime-bindings';
-import type { MetroTrain, MetroAlert, TrainStatus } from '../domain/trainModel.js';
+import type { MetroTrain, MetroAlert } from '../domain/trainModel.js';
 import type { MetroStation } from '../domain/stationModel.js';
 import { latLonToXZ, isValidLatLon } from '../utils/geo.js';
 import { normalizeRouteId } from './gtfsParser.js';
