@@ -123,9 +123,15 @@ for (const malformed of [false, true]) test(`API failure preserves trains and re
 });
 
 test('initial API failure recovers routes without reloading the page', async ({ page }) => {
+  test.setTimeout(55_000);
   await page.route('**/api/stations', route => route.fulfill({ status: 503, body: '{}' }));
+  // Initialization waits for every request, each with a 10-second timeout.
+  await page.route('**/api/route-shapes', async route => {
+    await new Promise(resolve => setTimeout(resolve, 6500));
+    await route.continue();
+  }, { times: 1 });
   await page.goto('/');
-  await expect(page.locator('#api-status')).toHaveText('未接続');
+  await expect(page.locator('#api-status')).toHaveText('未接続', { timeout: 20_000 });
   await page.unroute('**/api/stations');
   await expect(page.locator('#line-list .line-row')).toHaveCount(14, { timeout: 20_000 });
   await expect(page.locator('#api-status')).toHaveText('接続中');
