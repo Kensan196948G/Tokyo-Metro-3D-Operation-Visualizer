@@ -46,7 +46,7 @@ node --input-type=module - "$BACKUP_DIR" <<'NODE'
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { serviceDropin } from './scripts/deploy-release.mjs';
+import { serviceDropin, verifyServiceDropin } from './scripts/deploy-release.mjs';
 const state = path.join(os.homedir(), '.local/share/metro3d');
 if (fs.existsSync(path.join(state, 'operation.lock'))) throw Error('Release operation is active');
 const backup = JSON.parse(fs.readFileSync(path.join(process.argv[2], 'previous.json'), 'utf8'));
@@ -58,6 +58,7 @@ const contents = backup.contents ?? serviceDropin(baseline);
 if (typeof contents !== 'string' || !contents.startsWith('# Managed by metro3d deploy-release.mjs\n')) {
   throw Error('Unmanaged backup rejected');
 }
+verifyServiceDropin(contents);
 const target = path.join(os.homedir(), '.config/systemd/user/metro3d.service.d/90-metro3d-release.conf');
 fs.writeFileSync(`${target}.tmp`, contents, { mode: 0o600 });
 fs.renameSync(`${target}.tmp`, target);
