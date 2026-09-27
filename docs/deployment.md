@@ -1,153 +1,102 @@
-# 🚀 本番デプロイ手順書（Phase 4: Cloudflare 単一 Tunnel 構成）
+# 本番運用と公開範囲
 
-本書は人間のオペレーターが実行する手順です。**課金・外部公開・秘密情報の操作を含むため、CTO（Claude）は自動実行しません。**
+公開URL: **https://railway.mirai-dx-platform.com/**
 
-公開 URL: **https://railway.mirai-dx-platform.com**
+本書は現行運用の入口である。反映・復旧の実行手順は
+[CI成果物によるリリース運用](release-operations.md)、DB操作は
+[Local PostgreSQL設計と運用](postgresql.md)を正本とする。
+Production反映、Secret変更、破壊的操作にはHuman Gateが必要。
 
-## 📌 本番構成（単一 Tunnel・単一サービス）
+## 現行構成
 
-現行の LAN 常駐サービス（backend が frontend/dist も配信、PORT=3020）を
-そのまま Cloudflare Tunnel で公開します。Pages・別 API ホストは使いません。
-
-```
-[ブラウザ]
-   │ HTTPS
-   ▼
-[Cloudflare Edge]  railway.mirai-dx-platform.com
-   │ (Tunnel: アウトバウンド接続のみ・ポート開放不要)
-   ▼
-[cloudflared] ── http://localhost:3020 ──▶ [metro3d.service]
-                                             ├─ Fastify API (/api/*)
-                                             ├─ frontend/dist 静的配信 (/)
-                                             └─ GTFS-RT 常駐ポーリング内蔵
+```text
+Browser -> Cloudflare Edge -> existing Cloudflare Tunnel
+        -> http://localhost:3020 -> metro3d.service
+                                   |-- Fastify /api/*
+                                   |-- frontend/dist
+                                   |-- Local PostgreSQL (metro3d)
+                                   `-- GTFS / GTFS-RT polling
 ```
 
-- フロントは `VITE_API_BASE_URL` **未設定**でビルド（相対 `/api` = 同一オリジン）→ CORS 不要
-- `metro3d-fetch.timer` は **使用しない**（server 内蔵ポーリングと二重取得になるため）
-- 管理 API `/api/admin/refetch` は cf-* ヘッダ検出で 403（コード側でガード済み）
+- 単一ホスト・単一サービス構成。Pagesや別APIホストは使用しない。
+- フロントエンドは同一オリジンの相対 `/api` を使用する。
+- サービスはユーザーsystemdの `metro3d.service`、Tunnelは `metro3d-cloudflared.service`。
+- GTFS-RT取得はserver内蔵ポーリング。別のfetch timerを併用しない。
+- 本番は `CACHE_BACKEND=postgres`。専用Schema、Migration、最小権限Roleを使用する。
+- 新規DB SecretはRepository外の `~/.config/metro3d/metro3d.env`、権限0600。
+  値を表示・commit・ログ保存しない。
 
-## ✅ 前提条件
+## 公開範囲
 
-| 項目 | 内容 | 状態 |
-|---|---|---|
-| ODPT アカウント | https://developer.odpt.org/ でトークン発行 | ⬜ 人間が登録 |
-| Cloudflare アカウント | mirai-dx-platform.com のゾーンが Cloudflare DNS 管理下 | ⬜ 人間が確認 |
-| Ubuntu サーバー | Node.js 20+ / systemd / metro3d.service 稼働中 | ✅ 検証済み (LAN 3020) |
+ユーザーの承認済み要件は**すべての閲覧者がログインなしで閲覧可能**である。
+`railway.mirai-dx-platform.com` にメール限定のCloudflare Access Applicationを
+追加しない。公開閲覧と管理操作の権限は分離する。
 
-## 1️⃣ サービス側の準備（既存 LAN サービスを流用）
+- 閲覧用HTML・JS・GET APIは匿名公開。
+- `/api/admin/refetch` はローカルCLI限定。Cloudflare経由、外部接続、
+  Origin/Sec-Fetch-Siteを伴うブラウザ呼び出しは403。
+- 既存のWAFやBot対策を一括無効化しない。他ホストのAccess設定を変更しない。
+- 既存Tunnel・DNSを使用する。新規Tunnel作成やDNSの付け替えは不要。
 
-リポジトリ直下 `.env` を本番値へ（該当行のみ）:
+2026-09-27の確認では、対象に一致するAccess Applicationがなく、匿名HTTPは200、
+Accessログインへの転送もなかった。IP制限・アカウント共通設定の一部はAPI権限不足で
+未確認であり、すべての地域・IPからの到達を保証したものではない。
 
-```ini
-NODE_ENV=production
-PORT=3020
-ODPT_API_TOKEN=<発行したトークン>
-ODPT_GTFS_URL=<ODPT の GTFS zip URL>
-ODPT_GTFS_RT_URL=<ODPT の GTFS-RT URL>
-FRONTEND_ORIGIN=https://railway.mirai-dx-platform.com
-SERVE_STATIC_DIR=../frontend/dist
-FETCH_INTERVAL_SECONDS=15
+## リリースと確認
+
+通常PRでRequired Checksを通し、mainの成功CIが生成した成果物を使用する。
+作業ツリー内の再ビルドだけでは、稼働中のreleaseは更新されない。
+`git checkout`や旧unitへの単純復元を本番Rollbackとして使用しない。
+
+1. [リリース運用](release-operations.md)に従いprepareする。
+2. 隔離PreviewでHealth、HTML/JS、API、ブラウザ主要Flowを確認する。
+3. DBを伴う場合はMigration、限定RoleのRead/Write、Backup/Restoreを確認する。
+4. Human Gateの範囲を確認してactivateする。
+5. localhostと公開URLの両方、匿名ブラウザ、ログ・Error Rateを確認する。
+
+以下は読み取り専用の疎通確認であり、これだけで全受入条件を満たすものではない。
+
+```sh
+systemctl --user is-active metro3d.service metro3d-cloudflared.service
+systemctl --user is-enabled metro3d.service metro3d-cloudflared.service
+curl --fail --silent --show-error https://railway.mirai-dx-platform.com/api/health
+curl --silent --show-error --output /dev/null --write-out '%{http_code} %{redirect_url}\n' https://railway.mirai-dx-platform.com/
 ```
 
-```bash
-# ビルド反映 + 再起動（トークン設定後は常駐ポーリングが自動で実データ取得開始）
-cd frontend && npm run build && cd ../backend && npm run build && cd ..
-systemctl --user restart metro3d
-curl -s http://localhost:3020/api/health   # → status: healthy
-# 旧キャッシュの一掃（垂直再設計後の座標を反映させる）
-curl -s -X POST http://localhost:3020/api/admin/refetch | jq .ok
-```
+本番Healthは `data.status=healthy`、`data.storage=postgres` を確認する。
+HTML参照先JS/CSSとCI成果物の一致も確認する。Healthだけの200を配備成功にしない。
+サービスenabledは自動起動設定の証拠であり、実機再起動試験の代替ではない。
 
-## 2️⃣ Cloudflare Tunnel（人間実行）
+## ODPT実データ検証: 準備待ち
 
-```bash
-# cloudflared インストール: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/
-cloudflared tunnel login                       # ブラウザで mirai-dx-platform.com ゾーンを許可
-cloudflared tunnel create metro3d              # <TUNNEL_ID> が発行される
-cloudflared tunnel route dns metro3d railway.mirai-dx-platform.com   # DNS CNAME 自動作成
-```
+2026-09-27、ユーザーはTokenとGTFS/GTFS-RT URLが未準備と回答した。
+現在はDEMOモック運行。実データの取得成功を主張しない。
+[Issue #26](https://github.com/Kensan196948G/Tokyo-Metro-3D-Operation-Visualizer/issues/26)で追跡する。
+Issue上の「AC-006」は実データ検証の呼称だが、要件定義書のAC-006はAPI取得失敗時の
+エラー表示である。両者を混同せず、実ODPT検証を独立した未達項目として扱う。
 
-設定ファイル（テンプレ: `deploy/cloudflared-config.yml.example`）:
+準備後は `ODPT_API_TOKEN`、`ODPT_GTFS_URL`、`ODPT_GTFS_RT_URL` を保護された
+サーバー側環境ファイルで扱う。Secretをチャット、CLI引数、PR、Memoryに貼らない。
+読み込むEnvironmentFileと権限を確認し、Preview成功後に承認範囲内で本番へ反映する。
 
-```bash
-mkdir -p ~/.cloudflared
-cp deploy/cloudflared-config.yml.example ~/.cloudflared/config.yml
-# <TUNNEL_ID> を置換し credentials-file のパスを確認
-```
+- メトロ列車の `positionSource`、APIの取得状態・鮮度、実データ表示を確認する。
+- JRのmockと実データを区別する。15秒周期の更新・遅延情報を実feedで確認する。
+- Token不正、timeout、空feed、古いfeedの状態表示・復旧を検証する。
+- Tokenがブラウザ配信物やログへ露出していないことを確認する。
 
-常駐化（どちらか）:
+API通信障害時は接続エラーを表示して直前の描画を保持し、復旧を再試行する。
+正常な空feedと通信失敗は区別する。DB障害はHealth/APIを503とし、mock成功で隠さない。
+モックによるテスト成功を実ODPT検証の成功と読み替えない。
 
-```bash
-# A) システムサービス（推奨・要 sudo）
-sudo cloudflared --config /home/kensan/.cloudflared/config.yml service install
-sudo systemctl enable --now cloudflared
+## 障害対応とRollback
 
-# B) ユーザーサービスで試運転
-cloudflared tunnel run metro3d
-```
+- 新規releaseに重大異常があれば反映を止め、[検証付きRollback](release-operations.md)を使用する。
+- DB切替後に旧JSON構成へ戻す場合は[DBのRollback](postgresql.md#risk--rollback)に従い、
+  更新停止と最新snapshotのexportを考慮する。既存DBやbackupを削除しない。
+- Tunnel障害は対象の `metro3d-cloudflared.service` と既存ingressを確認する。
+  共用・他プロジェクトのTunnelを停止したりDNSを再作成したりしない。
+- 復旧後も公開HTML/JS、API、主要Flow、ログ・Error Rateを再確認する。
 
-疎通確認:
-
-```bash
-curl -s https://railway.mirai-dx-platform.com/api/health | jq .data.status   # "healthy"
-```
-
-## 3️⃣ 受入検証（AC-006 実データ検証）
-
-```bash
-curl -s https://railway.mirai-dx-platform.com/api/status | jq
-#   gtfsRtFetchSuccess: true / stale: false / dataSource: "gtfs"
-journalctl --user -u metro3d -n 20    # ポーリングが 15 秒間隔で success
-```
-
-- [ ] ブラウザで https://railway.mirai-dx-platform.com — 地下鉄9路線 + JR5路線が表示される
-- [ ] メトロ列車の `positionSource` が `gtfs-rt` または `station-based`（JR は仕様上 mock）
-- [ ] 下部バーが「LIVE 実データ」表示になる
-- [ ] 遅延列車が帯発光＋パルス表示される（遅延発生時）
-- [ ] 15 秒ごとに「更新」時刻が進む
-- [ ] `curl -s -X POST -H 'cf-connecting-ip: 1.2.3.4' https://railway.mirai-dx-platform.com/api/admin/refetch` が **403**
-
-## 4️⃣ ロールバック
-
-2026-09-27以降の検証済み成果物による反映は[リリース運用](release-operations.md)を使用する。
-フォルダ移動後はHealthだけが200でもHTMLが404になる場合があるため、`/`とJSアセットまで検証する。
-`SERVE_STATIC_DIR`指定先が存在しない場合は、APIだけを正常扱いせず起動を失敗させる。
-
-| 事象 | 対応 |
-|---|---|
-| API 障害 | `systemctl --user restart metro3d`／直前タグへ `git checkout` → rebuild |
-| RT 取得失敗連続 | フロントは自動で DEMO(mock) 継続。ODPT 側 status 確認 |
-| Tunnel 断 | `sudo systemctl restart cloudflared` |
-| 公開停止 | `sudo systemctl stop cloudflared`（LAN 提供は継続） |
-
-## 🔒 アクセス制御（Cloudflare Access・メール認証）
-
-公開URLを特定メールアドレスに限定する（Zero Trust・One-time PIN 認証）。
-再利用ポリシーは作成済み: `MIRAI-DX` (1f24a1d9-…) / `Allow mirai-const domain + kensan1969` (b898b177-…)
-— いずれも「Emails ending in mirai-const.co.jp」+「kensan1969@gmail.com」の Allow。
-
-**アプリ適用手順（人間・ダッシュボード）:**
-1. https://one.dash.cloudflare.com → Access → Applications → **Add an application → Self-hosted**
-2. Application name: `Tokyo Metro 3D` / Session Duration: 24h
-3. Public hostname: subdomain `railway` / domain `mirai-dx-platform.com`（パス空欄=全体保護）
-4. Policies → **Select existing policies** → 上記どちらかを選択 → Save
-
-**検証:**
-```bash
-curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" https://railway.mirai-dx-platform.com/
-# → 302 https://<team>.cloudflareaccess.com/... なら保護有効
-```
-ブラウザではメール入力 → 届いた PIN 入力でアクセス（許可メールのみ通過）。
-
-## 🔐 セキュリティチェックリスト
-
-- [ ] `.env` の権限 0640 以下・git 追跡外
-- [ ] `ODPT_API_TOKEN` がフロントエンド/リポジトリに存在しない（`git grep` で確認）
-- [ ] 管理 API が Cloudflare 経由で 403（cf-* ヘッダガード・上記 AC で確認）
-- [ ] Cloudflare ダッシュボードで Bot Fight Mode / rate limiting を必要に応じ有効化
-
-## 📎 参考: 旧 Pages + Tunnel 分離構成
-
-以前の設計（frontend=Pages / api.<domain>=Tunnel の 2 ホスト構成）は
-`git log docs/deployment.md` の履歴を参照。単一サブドメイン運用が決まったため
-本書は単一 Tunnel 構成へ改訂した（2026-07-05, Issue #23）。
+2026-09-27の本番切替、DB復元試験、公開E2E、残存リスクの証跡は
+[Issue #36](https://github.com/Kensan196948G/Tokyo-Metro-3D-Operation-Visualizer/issues/36#issuecomment-5856503723)を参照。
+過去のPages分離構成やメール限定公開の手順はgit履歴で参照できるが、現行運用には適用しない。
