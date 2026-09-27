@@ -97,10 +97,12 @@ export function generateMockAlerts(): MetroAlert[] {
  * mock set — its realtime feed is challenge-licensed and not wired up.
  * `source` describes the METRO portion.
  */
-export function loadStations(): { stations: MetroStation[]; source: 'gtfs' | 'mock' } {
-  const cached = cacheStore.read<MetroStation[]>('stations');
+export async function loadStations(): Promise<{ stations: MetroStation[]; source: 'gtfs' | 'mock' }> {
+  const snapshot = await cacheStore.readMany(['stations', 'gtfs-meta']);
+  const cached = snapshot.stations as MetroStation[] | null;
+  const meta = snapshot['gtfs-meta'] as { source?: string } | null;
   if (cached && cached.length > 0) {
-    return { stations: [...cached, ...JR_MOCK_STATIONS], source: 'gtfs' };
+    return { stations: [...cached, ...JR_MOCK_STATIONS], source: meta?.source === 'mock' ? 'mock' : 'gtfs' };
   }
   logger.warn('loadStations: cache empty, using mock stations');
   return { stations: MOCK_STATIONS, source: 'mock' };

@@ -5,13 +5,9 @@ import type { MetroTrain, MetroAlert } from '../domain/trainModel.js';
 import type { MetroRouteShape } from '../services/gtfsParser.js';
 import type { RtMeta } from '../services/gtfsRtFetcher.js';
 
-type GtfsMeta = { fetchedAt: string; stationCount: number; shapeCount: number };
+type GtfsMeta = { source?: 'mock' | 'gtfs'; fetchedAt: string | null; stationCount: number; shapeCount: number };
 
 const RT_STALE_THRESHOLD_MS = 90_000;
-
-// Disk-read TTL for the REAL (GTFS-RT, metro-only) train cache. Mock trains
-// are a pure function of wall-clock time and are regenerated on every poll.
-const TRAIN_CACHE_TTL_MS = 10_000;
 
 function isRtStale(meta: RtMeta | null, now: number): boolean {
   const updated = meta?.fetchedAt ? Date.parse(meta.fetchedAt) : NaN;
@@ -19,20 +15,11 @@ function isRtStale(meta: RtMeta | null, now: number): boolean {
 }
 
 export async function realtimeRoute(app: FastifyInstance): Promise<void> {
-  let realTrainCache: MetroTrain[] | null = null;
-  let realTrainMeta: RtMeta | null = null;
-  let realTrainCacheTime = 0;
-  const readTrains = (now: number): void => {
-    if (now - realTrainCacheTime > TRAIN_CACHE_TTL_MS || realTrainCacheTime === 0) {
-      const cached = cacheStore.read<MetroTrain[]>('trains');
-      realTrainCache = Array.isArray(cached) ? cached : null;
-      realTrainMeta = cacheStore.read<RtMeta>('rt-meta');
-      realTrainCacheTime = now;
-    }
-  };
   app.get('/api/realtime/trains', async (_req, reply) => {
     const now = Date.now();
-    readTrains(now);
+    const snapshot = await cacheStore.readMany(['trains', 'rt-meta']);
+    const realTrainCache = Array.isArray(snapshot.trains) ? snapshot.trains as MetroTrain[] : null;
+    const realTrainMeta = snapshot['rt-meta'] as RtMeta | null;
     // Metro: real feed when present, otherwise mock. JR: always mock — its
     // ODPT realtime feed is challenge-2026-licensed and not wired up.
     const metroTrains =
@@ -51,9 +38,10 @@ export async function realtimeRoute(app: FastifyInstance): Promise<void> {
   });
 
   app.get('/api/realtime/alerts', async (_req, reply) => {
-    const cached = cacheStore.read<MetroAlert[]>('alerts');
+    const snapshot = await cacheStore.readMany(['alerts', 'rt-meta']);
+    const cached = snapshot.alerts as MetroAlert[] | null;
     const alerts = Array.isArray(cached) ? cached : generateMockAlerts();
-    const rtMeta = cacheStore.read<RtMeta>('rt-meta');
+    const rtMeta = snapshot['rt-meta'] as RtMeta | null;
     return reply.send({
       ok: true,
       data: alerts,
@@ -66,7 +54,7 @@ export async function realtimeRoute(app: FastifyInstance): Promise<void> {
   });
 
   app.get('/api/route-shapes', async (_req, reply) => {
-    const shapes = cacheStore.read<MetroRouteShape[]>('route-shapes') ?? [];
+    const shapes = await cacheStore.read<MetroRouteShape[]>('route-shapes') ?? [];
     return reply.send({
       ok: true,
       data: shapes,
@@ -78,10 +66,11 @@ export async function realtimeRoute(app: FastifyInstance): Promise<void> {
   });
 
   app.get('/api/status', async (_req, reply) => {
-    const gtfsMeta = cacheStore.read<GtfsMeta>('gtfs-meta');
+    const snapshot = await cacheStore.readMany(['gtfs-meta', 'trains', 'rt-meta']);
+    const gtfsMeta = snapshot['gtfs-meta'] as GtfsMeta | null;
     const now = Date.now();
-    readTrains(now);
-    const rtMeta = realTrainMeta;
+    const realTrainCache = Array.isArray(snapshot.trains) ? snapshot.trains as MetroTrain[] : null;
+    const rtMeta = snapshot['rt-meta'] as RtMeta | null;
     const rtStale = realTrainCache === null || isRtStale(rtMeta, now);
     return reply.send({
       ok: true,
@@ -94,7 +83,7 @@ export async function realtimeRoute(app: FastifyInstance): Promise<void> {
         gtfsRtTrainCount: rtMeta?.trainCount ?? 0,
         consecutiveFailures: rtMeta?.consecutiveFailures ?? 0,
         stale: rtStale,
-        dataSource: gtfsMeta ? 'gtfs' : 'mock',
+        dataSource: gtfsMeta && gtfsMeta.source !== 'mock' ? 'gtfs' : 'mock',
         realtimeSource: realTrainCache !== null ? 'gtfs-rt' : 'mock',
       },
       meta: {

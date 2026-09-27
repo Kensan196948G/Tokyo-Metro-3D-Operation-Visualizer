@@ -31,6 +31,13 @@ node scripts/deploy-release.mjs --activate <full-sha> <runid>
 
 専用drop-inでWorkingDirectory、EnvironmentFile、ExecStartを置換する。ExecStartは `/usr/bin/env` から `SERVE_STATIC_DIR` をrelease内frontend/dist、`CACHE_DIR` を現rootのbackend/data/cacheに固定し、`/usr/bin/node dist/server.js` を実行する。`.env` 内の古いパスよりこの指定が優先される。
 
+PostgreSQL導入後は、存在する場合のみ `~/.config/metro3d/metro3d.env` を追加EnvironmentFileとして
+読み込む。所有者がサービスユーザー、通常ファイル、mode 0600であることを停止前に確認する。
+このファイルの値は表示・コピーしない。baseline復旧設定にはこの追加EnvironmentFileを含めず、
+旧JSON構成へ戻せるようにする。DB移行後のデータを保持してJSONへ戻す手順は
+`docs/postgresql.md` を参照。prepare時の隔離検証は明示的なfileモードであり、
+PostgreSQL接続・Migration・Read/Write・DB版Previewの成功を代替しない。
+
 daemon-reload/restart後、localhostのhealth、root HTML、参照JS/CSSをHTTP検証する。失敗時は前回drop-inへ戻して再起動・再検証する。初回、または前回releaseも復旧できない場合はbaselineを指すdrop-inで復旧する。復旧できてもコマンドは失敗終了し、新release成功とは扱わない。
 
 WorkingDirectory等のパス指定とExecStartの引数は同じ引用規則ではない。生成文字列のUnit Testに加え、実systemd parserによる検証を必須とする。2026-09-27の初回反映では引用符付きWorkingDirectory/EnvironmentFileが起動失敗を起こし、自動Rollbackも同じ生成不具合で失敗した。専用drop-inを訂正してbaselineへ復旧したが、この操作は新リリースの配備成功ではない。詳細は `docs/deep-debug-2026-09-27.md` のRound 8を参照。

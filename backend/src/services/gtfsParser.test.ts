@@ -123,28 +123,28 @@ describe('buildStopRouteMap', () => {
 });
 
 describe('normalizeGtfsZip', () => {
-  it('extracts and normalizes a full fixture zip', () => {
+  it('extracts and normalizes a full fixture zip', async () => {
     const zip = zipSync({
       'stops.txt': strToU8(STOPS_FIXTURE),
       'shapes.txt': strToU8(SHAPES_FIXTURE),
       'trips.txt': strToU8(TRIPS_FIXTURE),
       'stop_times.txt': strToU8(STOP_TIMES_FIXTURE),
     });
-    const result = normalizeGtfsZip(zip, '2026-07-04T00:00:00Z');
+    const result = await normalizeGtfsZip(zip, '2026-07-04T00:00:00Z');
     expect(result.ok).toBe(true);
     expect(result.stationCount).toBe(2);
     expect(result.shapeCount).toBe(1);
   });
 
-  it('fails cleanly when stops.txt is missing', () => {
+  it('fails cleanly when stops.txt is missing', async () => {
     const zip = zipSync({ 'agency.txt': strToU8('agency_id\nx') });
-    const result = normalizeGtfsZip(zip, '2026-07-04T00:00:00Z');
+    const result = await normalizeGtfsZip(zip, '2026-07-04T00:00:00Z');
     expect(result.ok).toBe(false);
     expect(result.error).toContain('stops.txt');
   });
 
-  it('fails cleanly on corrupt zip data', () => {
-    const result = normalizeGtfsZip(new Uint8Array([1, 2, 3]), '2026-07-04T00:00:00Z');
+  it('fails cleanly on corrupt zip data', async () => {
+    const result = await normalizeGtfsZip(new Uint8Array([1, 2, 3]), '2026-07-04T00:00:00Z');
     expect(result.ok).toBe(false);
     expect(result.error).toContain('unzip');
   });

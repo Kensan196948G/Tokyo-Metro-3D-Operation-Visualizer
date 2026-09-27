@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { validateIdentifiers, validateRuntime, verifyGate, validateArchive, serviceDropin, verifyServiceDropin, RUNTIME_CHECK } from './deploy-release.mjs';
+import { validateIdentifiers, validateRuntime, verifyGate, validateArchive, serviceDropin, verifyServiceDropin, verifyStorageHealth, validateDatabaseEnvironment, RUNTIME_CHECK } from './deploy-release.mjs';
 
 const sha = 'a'.repeat(40);
 const successful = { path: '.github/workflows/ci.yml', head_sha: sha, status: 'completed',
@@ -131,4 +131,41 @@ test('drop-in resets obsolete executable and environment file while retaining pr
   for (const unsafe of ['quote"', 'back\\slash', '$variable', '*glob', '[glob]']) {
     assert.throws(() => serviceDropin(`/tmp/${unsafe}`));
   }
+});
+
+test('optional protected database environment follows the existing environment without exposing values', () => {
+  const unit = serviceDropin('/tmp/release', '/tmp/current', '/tmp/private/metro3d.env');
+  assert.match(unit, /EnvironmentFile=\/tmp\/current\/\.env\nEnvironmentFile=\/tmp\/private\/metro3d.env\n/);
+  assert.doesNotThrow(() => verifyServiceDropin(unit));
+  assert.doesNotMatch(unit, /DATABASE_URL=|postgresql:\/\//);
+  assert.match(unit, /"CACHE_BACKEND=postgres"/);
+  assert.match(serviceDropin('/tmp/baseline'), /"CACHE_BACKEND=file"/);
+  assert.doesNotMatch(serviceDropin('/tmp/baseline'), /private\/metro3d/);
+});
+
+test('database deployment cannot report healthy file storage as PostgreSQL success', () => {
+  assert.doesNotThrow(() => verifyStorageHealth({ data: { status: 'healthy', storage: 'postgres' } }, 'postgres'));
+  assert.throws(() => verifyStorageHealth({ data: { status: 'healthy', storage: 'file' } }, 'postgres'));
+  assert.throws(() => verifyStorageHealth({ data: { status: 'healthy' } }, 'postgres'));
+  assert.throws(() => verifyStorageHealth({ data: { status: 'unhealthy', storage: 'postgres' } }, 'postgres'));
+  assert.doesNotThrow(() => verifyStorageHealth({ data: { status: 'healthy' } }));
+});
+
+test('database environment refuses insecure permissions, symlinks, wrong ownership and disappearance', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'metro3d-env-test-'));
+  const file = path.join(directory, 'database.env');
+  try {
+    assert.equal(validateDatabaseEnvironment(file), false);
+    assert.throws(() => validateDatabaseEnvironment(file, true));
+    fs.writeFileSync(file, '', { mode: 0o600 });
+    assert.equal(validateDatabaseEnvironment(file), true);
+    assert.throws(() => validateDatabaseEnvironment(file, true, process.getuid() + 1));
+    fs.chmodSync(file, 0o644);
+    assert.throws(() => validateDatabaseEnvironment(file));
+    const link = path.join(directory, 'linked.env');
+    fs.symlinkSync(file, link);
+    assert.throws(() => validateDatabaseEnvironment(link));
+    fs.unlinkSync(file);
+    assert.throws(() => validateDatabaseEnvironment(link));
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });

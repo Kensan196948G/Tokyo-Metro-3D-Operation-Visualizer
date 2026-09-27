@@ -10,6 +10,7 @@ import { config } from '../config.js';
 import { logger } from '../utils/logger.js';
 import { requestFeed } from './feedRequest.js';
 import { cacheStore } from './cacheStore.js';
+import { StorageError } from './storageError.js';
 import {
   parseStops,
   parseShapes,
@@ -51,7 +52,7 @@ export async function fetchAndNormalizeGtfs(
 }
 
 /** Pure normalization step, unit-testable with a fixture zip. */
-export function normalizeGtfsZip(zipBuf: Uint8Array, fetchedAt: string): GtfsFetchResult {
+export async function normalizeGtfsZip(zipBuf: Uint8Array, fetchedAt: string): Promise<GtfsFetchResult> {
   let files: Record<string, Uint8Array>;
   try {
     let totalSize = 0;
@@ -109,10 +110,13 @@ export function normalizeGtfsZip(zipBuf: Uint8Array, fetchedAt: string): GtfsFet
   const shapes = shapesText ? parseShapes(shapesText, shapeRouteMap) : [];
 
   try {
-    cacheStore.write('stations', stations);
-    cacheStore.write('route-shapes', shapes);
-    cacheStore.write('gtfs-meta', { fetchedAt, stationCount: stations.length, shapeCount: shapes.length });
-  } catch {
+    await cacheStore.writeBatch({
+      stations,
+      'route-shapes': shapes,
+      'gtfs-meta': { source: 'gtfs', fetchedAt, stationCount: stations.length, shapeCount: shapes.length },
+    });
+  } catch (error) {
+    if (error instanceof StorageError) throw error;
     return { ok: false, stationCount: 0, shapeCount: 0, fetchedAt, error: 'Cache write failed' };
   }
 

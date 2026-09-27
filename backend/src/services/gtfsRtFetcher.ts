@@ -8,6 +8,7 @@ import { config } from '../config.js';
 import { logger } from '../utils/logger.js';
 import { requestFeed } from './feedRequest.js';
 import { cacheStore } from './cacheStore.js';
+import { StorageError } from './storageError.js';
 import { loadStations } from './normalizer.js';
 import { decodeFeed, feedToTrains, feedToAlerts } from './gtfsRtDecoder.js';
 
@@ -25,10 +26,10 @@ export async function fetchAndDecodeRt(
   token: string = config.odptApiToken
 ): Promise<RtMeta> {
   const fetchedAt = new Date().toISOString();
-  const prior = cacheStore.read<RtMeta>('rt-meta');
+  const prior = await cacheStore.read<RtMeta>('rt-meta');
   const failures = prior?.consecutiveFailures ?? 0;
 
-  const fail = (error: string): RtMeta => {
+  const fail = async (error: string): Promise<RtMeta> => {
     const meta: RtMeta = {
       fetchedAt: prior?.fetchedAt ?? null,
       success: false,
@@ -38,8 +39,9 @@ export async function fetchAndDecodeRt(
       error,
     };
     try {
-      cacheStore.write('rt-meta', meta);
-    } catch {
+      await cacheStore.write('rt-meta', meta);
+    } catch (error) {
+      if (error instanceof StorageError) throw error;
       meta.error = 'Cache write failed';
     }
     logger.error({ error, consecutiveFailures: meta.consecutiveFailures }, 'GTFS-RT: fetch failed');
@@ -59,12 +61,10 @@ export async function fetchAndDecodeRt(
 
   try {
     const feed = decodeFeed(buf);
-    const { stations } = loadStations();
+    const { stations } = await loadStations();
     const trains = feedToTrains(feed, stations);
     const alerts = feedToAlerts(feed);
 
-    cacheStore.write('trains', trains);
-    cacheStore.write('alerts', alerts);
     const meta: RtMeta = {
       fetchedAt,
       success: true,
@@ -72,10 +72,11 @@ export async function fetchAndDecodeRt(
       trainCount: trains.length,
       alertCount: alerts.length,
     };
-    cacheStore.write('rt-meta', meta);
+    await cacheStore.writeBatch({ trains, alerts, 'rt-meta': meta });
     logger.info({ trains: trains.length, alerts: alerts.length }, 'GTFS-RT: decoded and cached');
     return meta;
-  } catch {
+  } catch (error) {
+    if (error instanceof StorageError) throw error;
     return fail('Feed decode or cache write failed');
   }
 }
