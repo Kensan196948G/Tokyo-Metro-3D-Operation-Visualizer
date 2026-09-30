@@ -88,7 +88,7 @@ GitHub Controllerは次を満たさない限りauto-mergeを実行しない（fa
 
 1. OpenDesign の生成物は `webui` ブランチへ蓄積する（`GITHUB_BASE_REF=webui` でGitHub Controller実行）。
 2. `main` へは `./start.sh open-design-promote` でPR（base: main）を出して統合する。
-3. 自動mergeする場合は `--auto-merge`（Required Checks PASS後のsquash merge）。既定はPR作成までとし、人間がmerge判断する。
+3. `main` 宛のPRも他のPRと同じく、Required Checks PASS後にsquashで自動mergeする（`--auto-merge`）。
 
 ### Repository settings
 
